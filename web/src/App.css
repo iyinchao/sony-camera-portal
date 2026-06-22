@@ -1,0 +1,206 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+/* ---- Toolbar ---- */
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: rgba(15, 17, 21, 0.85);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.brand .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.count {
+  margin-right: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- States ---- */
+.error-title {
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.centered {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--muted);
+}
+
+/* ---- Date groups ---- */
+.group {
+  content-visibility: auto; /* skip rendering whole off-screen day sections */
+}
+
+.date-h {
+  position: sticky;
+  top: 49px; /* sits just under the toolbar */
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(15, 17, 21, 0.8);
+  backdrop-filter: blur(6px);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+
+.date-h .date-label {
+  flex: 1;
+}
+
+.gcheck {
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid #3a4150;
+  border-radius: 5px;
+  flex: none;
+}
+
+.gcheck.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.gcheck.some {
+  background: linear-gradient(135deg, var(--accent) 50%, transparent 50%);
+  border-color: var(--accent);
+}
+
+/* ---- Grid ---- */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  padding: 10px 16px 16px;
+}
+
+.tile {
+  position: relative;
+  margin: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--panel);
+  cursor: pointer;
+  user-select: none;
+  /* Browser skips layout/paint for off-screen tiles → smooth with many photos. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 150px;
+}
+
+.tile img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  background: #0b0d11;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.tile img.loaded {
+  opacity: 1;
+}
+
+.tile.selected {
+  border-color: var(--accent);
+}
+
+.tile.selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(59, 130, 246, 0.12);
+  pointer-events: none;
+}
+
+.tile .check {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+
+.tile figcaption {
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Skeleton loading ---- */
+.skel-grid {
+  padding-top: 16px;
+}
+
+.tile.skel {
+  aspect-ratio: 3 / 2;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #14171d 25%, #20252f 50%, #14171d 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile.skel {
+    animation: none;
+  }
+  .tile img {
+    transition: none;
+  }
+}

@@ -1,0 +1,41 @@
+schema: spec-driven
+
+context: |
+  Product: sony-camera-portal — a single self-contained Go binary that runs a local
+  web gallery for browsing, selecting, and downloading JPEG photos from a Sony
+  a6000 (PlayMemories / Imaging Edge generation) over the camera's own Wi-Fi
+  access point. No Sony app, no cloud, fully offline.
+
+  Architecture: Browser → http://127.0.0.1:PORT (same-origin, no CORS) → Go
+  server → camera at http://192.168.122.1 (server-side fetch, so CORS /
+  mixed-content limits don't apply). The web UI is embedded via go:embed.
+
+  Tech stack: Go, standard library first (net/http, encoding/xml for UPnP SOAP).
+  Build static binaries with CGO_ENABLED=0. gofmt + go vet must be clean.
+  Table-driven tests in _test.go. Module path: github.com/iyinchao/sony-camera-portal.
+
+  Targets: macOS (arm64/amd64), Windows (amd64/arm64), Linux (amd64/arm64),
+  Android via Termux (android/arm64). Distribution via GoReleaser + GitHub
+  Releases + Homebrew tap + install.sh / install.ps1.
+
+  Camera protocol (Sony PlayMemories): camera becomes a Wi-Fi AP at fixed
+  192.168.122.1; GET /DmsDescPush.xml to find the ContentDirectory control URL;
+  enumerate photos via a UPnP ContentDirectory Browse SOAP action (ObjectID=0,
+  BrowseDirectChildren); each item exposes <res> URLs for thumbnail / reduced /
+  original; download via plain HTTP GET.
+
+  Hard constraints (do not regress):
+  - This path serves JPEG only; the camera downscales RAW (.ARW). Never promise RAW.
+  - In AP mode the camera is fixed at 192.168.122.1; keep configurable, default to it.
+  - Stay offline-capable: no CDN, no internet dependency at runtime.
+  - The HTTP server binds 127.0.0.1 only (never 0.0.0.0). No telemetry.
+
+  Layout: main.go (CLI), server/ (HTTP + /api proxy), camera/ (UPnP client),
+  web/ (embedded frontend).
+
+rules:
+  proposal:
+    - Keep proposals focused on one shippable increment
+    - Always include a "Non-goals" section
+  tasks:
+    - Each task must map to a verifiable outcome (a test, a build target, or a route)
