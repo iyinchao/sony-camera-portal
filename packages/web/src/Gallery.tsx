@@ -1,12 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PhotoProvider, PhotoView } from 'react-photo-view'
 import 'react-photo-view/dist/react-photo-view.css'
-import { Loader2 } from 'lucide-react'
+import {
+  ArrowDownWideNarrow,
+  ArrowUpWideNarrow,
+  CalendarDays,
+  LayoutGrid,
+  Loader2,
+} from 'lucide-react'
 import { fetchPage, type Photo } from './api'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 
 const PAGE_LIMIT = 60
+
+type Order = 'newest' | 'oldest'
 
 interface Group {
   key: string
@@ -49,37 +57,97 @@ export default function Gallery({
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [anchor, setAnchor] = useState<number | null>(null)
+  const [order, setOrder] = useState<Order>('newest')
+  const [grouped, setGrouped] = useState(true)
 
-  const offsetRef = useRef(0)
+  const loadedRef = useRef(0) // how many photos loaded so far
+  const totalRef = useRef<number | null>(null)
+  const genRef = useRef(0) // load-session token; bumping it discards in-flight loads
   const loadingRef = useRef(false)
   const doneRef = useRef(false)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
 
-  // Fetch the next page and append. Guards against concurrent/after-end calls.
+  // Fetch the next chunk in the current sort direction and append.
+  // 'oldest' pages forward from offset 0. 'newest' pages backward from the end
+  // (using the total) so the camera's newest photos appear first and the list
+  // doesn't reflow as more loads. If the total is unknown we fall back to a
+  // forward load and let the client-side `ordered` sort handle display.
+  // A generation token (genRef) discards results from a superseded session
+  // (order change / StrictMode double-mount); guards against concurrent calls.
   const loadMore = useCallback(async () => {
     if (loadingRef.current || doneRef.current) return
+    const gen = genRef.current
     loadingRef.current = true
     setLoading(true)
     setError(null)
     try {
-      const page = await fetchPage(offsetRef.current, PAGE_LIMIT)
-      offsetRef.current += page.photos.length
-      if (!page.hasMore || page.photos.length === 0) doneRef.current = true
-      setPhotos((prev) => [...prev, ...page.photos])
-      setTotal(page.total)
-      setHasMore(page.hasMore && page.photos.length > 0)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      loadingRef.current = false
-      setLoading(false)
-    }
-  }, [])
+      if (order === 'newest' && totalRef.current === null) {
+        const probe = await fetchPage(0, 1) // learn the total so we can page from the end
+        if (gen !== genRef.current) return
+        if (probe.total !== null) {
+          totalRef.current = probe.total
+          setTotal(probe.total)
+        }
+      }
 
-  // First page on mount.
+      let chunk: Photo[]
+      let atEnd: boolean
+      const tot = totalRef.current
+
+      if (order === 'newest' && tot !== null) {
+        const remaining = tot - loadedRef.current
+        if (remaining <= 0) {
+          doneRef.current = true
+          setHasMore(false)
+          return
+        }
+        const start = Math.max(0, remaining - PAGE_LIMIT)
+        const page = await fetchPage(start, remaining - start)
+        if (gen !== genRef.current) return
+        chunk = page.photos.slice().reverse() // newest-first within the chunk
+        atEnd = start === 0 || page.photos.length === 0
+      } else {
+        const page = await fetchPage(loadedRef.current, PAGE_LIMIT)
+        if (gen !== genRef.current) return
+        if (page.total !== null) {
+          totalRef.current = page.total
+          setTotal(page.total)
+        }
+        chunk = page.photos
+        atEnd = !page.hasMore || page.photos.length === 0
+      }
+
+      loadedRef.current += chunk.length
+      if (atEnd) doneRef.current = true
+      setPhotos((prev) => {
+        const seen = new Set(prev.map((p) => p.id))
+        return [...prev, ...chunk.filter((p) => !seen.has(p.id))]
+      })
+      setHasMore(!atEnd)
+    } catch (e) {
+      if (gen === genRef.current) setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      if (gen === genRef.current) {
+        loadingRef.current = false
+        setLoading(false)
+      }
+    }
+  }, [order])
+
+  // Load the first chunk, and reset + reload from the right end when the sort
+  // direction changes. Bumping genRef invalidates any in-flight load.
   useEffect(() => {
+    genRef.current += 1
+    loadingRef.current = false
+    doneRef.current = false
+    loadedRef.current = 0
+    setPhotos([])
+    setHasMore(true)
+    setError(null)
+    setAnchor(null)
     loadMore()
-  }, [loadMore])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order])
 
   // Load more as the bottom sentinel approaches (also auto-fills short pages).
   useEffect(() => {
@@ -95,7 +163,21 @@ export default function Gallery({
     return () => io.disconnect()
   }, [loadMore])
 
-  const groups = useMemo(() => groupByDate(photos), [photos])
+  // Display order: sort the loaded photos by date, newest or oldest first.
+  // (Sorting client-side keeps it correct regardless of the camera's own order.)
+  const ordered = useMemo(() => {
+    const asc = [...photos].sort((a, b) => {
+      const da = a.date || ''
+      const db = b.date || ''
+      return da < db ? -1 : da > db ? 1 : 0
+    })
+    return order === 'oldest' ? asc : asc.reverse()
+  }, [photos, order])
+
+  const groups = useMemo(() => (grouped ? groupByDate(ordered) : []), [ordered, grouped])
+
+  // Changing order/grouping invalidates the shift-range anchor (indices moved).
+  useEffect(() => setAnchor(null), [order, grouped])
 
   // Plain click toggles one; shift-click selects the range from the last anchor.
   const toggle = useCallback(
@@ -105,13 +187,13 @@ export default function Gallery({
         if (shift && anchor !== null) {
           const lo = Math.min(anchor, index)
           const hi = Math.max(anchor, index)
-          const selecting = !next.has(photos[index].id)
+          const selecting = !next.has(ordered[index].id)
           for (let i = lo; i <= hi; i++) {
-            if (selecting) next.add(photos[i].id)
-            else next.delete(photos[i].id)
+            if (selecting) next.add(ordered[i].id)
+            else next.delete(ordered[i].id)
           }
         } else {
-          const id = photos[index].id
+          const id = ordered[index].id
           if (next.has(id)) next.delete(id)
           else next.add(id)
         }
@@ -119,7 +201,7 @@ export default function Gallery({
       })
       setAnchor(index)
     },
-    [anchor, photos],
+    [anchor, ordered],
   )
 
   const toggleGroup = useCallback((g: Group) => {
@@ -171,6 +253,30 @@ export default function Gallery({
           {loaded}
           {total != null ? ` / ${total}` : ''} photos{count > 0 ? ` · ${count} selected` : ''}
         </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setOrder((o) => (o === 'newest' ? 'oldest' : 'newest'))}
+          disabled={loaded === 0}
+          title={order === 'newest' ? 'Newest first' : 'Oldest first'}
+        >
+          {order === 'newest' ? (
+            <ArrowDownWideNarrow className="h-4 w-4" />
+          ) : (
+            <ArrowUpWideNarrow className="h-4 w-4" />
+          )}
+          {order === 'newest' ? 'Newest' : 'Oldest'}
+        </Button>
+        <Button
+          variant={grouped ? 'outline' : 'ghost'}
+          size="sm"
+          onClick={() => setGrouped((g) => !g)}
+          disabled={loaded === 0}
+          title={grouped ? 'Grouped by date' : 'Ungrouped'}
+        >
+          {grouped ? <CalendarDays className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+          {grouped ? 'By date' : 'All'}
+        </Button>
         <Button variant="ghost" size="sm" onClick={selectAll} disabled={loaded === 0}>
           Select all
         </Button>
@@ -195,29 +301,42 @@ export default function Gallery({
       )}
 
       <PhotoProvider>
-        {groups.map((g) => {
-          const allSel = g.items.every((it) => selected.has(it.photo.id))
-          const someSel = !allSel && g.items.some((it) => selected.has(it.photo.id))
-          return (
-            <section key={g.key} className="group">
-              <div className="date-h" onClick={() => toggleGroup(g)} role="button" tabIndex={0}>
-                <span className={'gcheck' + (allSel ? ' on' : someSel ? ' some' : '')} />
-                <span className="date-label">{g.label}</span>
-                <span className="muted">{g.items.length}</span>
-              </div>
-              <div className="grid">
-                {g.items.map(({ photo, index }) => (
-                  <Tile
-                    key={photo.id}
-                    photo={photo}
-                    selected={selected.has(photo.id)}
-                    onToggle={(shift) => toggle(index, shift)}
-                  />
-                ))}
-              </div>
-            </section>
-          )
-        })}
+        {grouped ? (
+          groups.map((g) => {
+            const allSel = g.items.every((it) => selected.has(it.photo.id))
+            const someSel = !allSel && g.items.some((it) => selected.has(it.photo.id))
+            return (
+              <section key={g.key} className="group">
+                <div className="date-h" onClick={() => toggleGroup(g)} role="button" tabIndex={0}>
+                  <span className={'gcheck' + (allSel ? ' on' : someSel ? ' some' : '')} />
+                  <span className="date-label">{g.label}</span>
+                  <span className="muted">{g.items.length}</span>
+                </div>
+                <div className="grid">
+                  {g.items.map(({ photo, index }) => (
+                    <Tile
+                      key={photo.id}
+                      photo={photo}
+                      selected={selected.has(photo.id)}
+                      onToggle={(shift) => toggle(index, shift)}
+                    />
+                  ))}
+                </div>
+              </section>
+            )
+          })
+        ) : (
+          <div className="grid">
+            {ordered.map((photo, index) => (
+              <Tile
+                key={photo.id}
+                photo={photo}
+                selected={selected.has(photo.id)}
+                onToggle={(shift) => toggle(index, shift)}
+              />
+            ))}
+          </div>
+        )}
       </PhotoProvider>
 
       {/* Infinite-scroll sentinel + status */}

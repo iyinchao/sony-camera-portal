@@ -71,6 +71,25 @@ two actions don't conflict.
 - **WHEN** the user clicks a tile's selection checkbox
 - **THEN** the photo's selection toggles and the lightbox does NOT open
 
+### Requirement: Sort order and date grouping are toggleable
+
+The gallery SHALL let the user switch the date sort order (newest-first or
+oldest-first) and turn date grouping on or off, with clear icon controls.
+Newest-first SHALL show the camera's actual newest photos first (paging from the
+end when the total is known), not merely the newest of what happens to be loaded.
+
+#### Scenario: Toggle sort order
+
+- **WHEN** the user switches the sort order
+- **THEN** the gallery reloads from the corresponding end and shows photos
+  newest-first or oldest-first accordingly, without duplicates
+
+#### Scenario: Turn off grouping
+
+- **WHEN** the user turns off date grouping
+- **THEN** the photos render as a single flat grid (no date headers) in the
+  current sort order; turning it back on restores the date sections
+
 ### Requirement: Reconnect resets the gallery
 
 When the user changes camera / reconnects, the gallery SHALL reset its paging

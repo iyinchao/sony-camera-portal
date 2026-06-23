@@ -16,6 +16,7 @@
 - [x] 3.1 `api.ts`: `fetchPage(offset, limit)` only; removed the temporary `fetchPhotos` adapter; App no longer pre-fetches (Gallery owns paging, keyed by host so reconnect resets)
 - [x] 3.2 `Gallery`: flat `photos` + `offsetRef`/`hasMore`/`loading`/`total`; page 0 on mount; IntersectionObserver sentinel (800px) → guarded `loadMore()` (loadingRef/doneRef); append + re-group. Verified: 60→120→180→200 then stop; requests offset=0/60/120/180, no dupes
 - [x] 3.3 Selection over loaded photos (shift-range, per-day, select-all-loaded); header shows `loaded / total photos`; skeleton/loading/end/error+retry states
+- [x] 3.4 Sort toggle (newest/oldest) + grouping toggle (by-date/flat) with lucide icons; newest pages from the END using total (true newest first, no reflow), oldest pages forward; order change resets + reloads; generation token + id-dedupe guard StrictMode/order-change double-loads
 
 ## 4. Lightbox (react-photo-view)
 
