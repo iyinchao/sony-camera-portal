@@ -18,7 +18,11 @@ export default function ConnectPanel({
   onCancel?: () => void
 }) {
   const [ip, setIp] = useState('')
+  const [manualOpen, setManualOpen] = useState(false)
   const trimmed = ip.trim()
+  // Manual entry is a fallback: shown when the user opens it, or automatically
+  // after auto-discovery fails (an error is present).
+  const showManual = manualOpen || !!error
 
   return (
     <div className="flex min-h-screen flex-1 items-center justify-center p-4">
@@ -45,51 +49,58 @@ export default function ConnectPanel({
           </div>
         )}
 
-        <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Camera IP address
-        </label>
-        <div className="flex flex-col gap-2.5">
-          <Input
-            value={ip}
-            onChange={(e) => setIp(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && trimmed) onManual(trimmed)
-            }}
-            placeholder="10.0.0.1"
-            inputMode="decimal"
-            disabled={busy}
-          />
-          <Button
-            variant="primary"
-            size="lg"
-            className="w-full"
-            disabled={busy || !trimmed}
-            onClick={() => onManual(trimmed)}
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Connect
-          </Button>
-        </div>
-
-        <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="h-px flex-1 bg-border" />
-          or
-          <span className="h-px flex-1 bg-border" />
-        </div>
-
+        {/* Primary path: auto-discover. */}
         <Button
-          variant="outline"
+          variant="primary"
           size="lg"
           className="w-full"
           onClick={onAuto}
           disabled={busy}
         >
-          <Search className="h-4 w-4" />
-          {busy ? 'Searching…' : 'Auto-discover camera'}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+          {busy ? 'Searching for camera…' : 'Auto-discover camera'}
         </Button>
 
+        {/* Fallback path: manual IP, revealed on demand or after a failure. */}
+        {showManual ? (
+          <div className="mt-4">
+            <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Or enter the camera IP
+            </label>
+            <div className="flex gap-2">
+              <Input
+                value={ip}
+                onChange={(e) => setIp(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && trimmed) onManual(trimmed)
+                }}
+                placeholder="10.0.0.1"
+                inputMode="decimal"
+                disabled={busy}
+                autoFocus
+              />
+              <Button
+                variant="outline"
+                size="lg"
+                disabled={busy || !trimmed}
+                onClick={() => onManual(trimmed)}
+              >
+                Connect
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setManualOpen(true)}
+            className="mx-auto mt-3 block text-sm text-muted-foreground transition-colors hover:text-accent"
+          >
+            Enter IP manually
+          </button>
+        )}
+
         {onCancel && (
-          <Button variant="ghost" className="mt-2 w-full" onClick={onCancel} disabled={busy}>
+          <Button variant="ghost" className="mt-3 w-full" onClick={onCancel} disabled={busy}>
             Cancel
           </Button>
         )}
