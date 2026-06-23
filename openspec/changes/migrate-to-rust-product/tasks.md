@@ -11,34 +11,34 @@
 
 ## 3. camera lib (port + verify offline)
 
-- [ ] 3.1 Move fixtures to `packages/camera/testdata/` (`DmsDesc.xml`, `browse_response.xml`)
-- [ ] 3.2 Port model + iSH-safe blocking HTTP client (no socket options) into `packages/camera`
-- [ ] 3.3 Port discovery: SSDP → local-IP gateway candidates (getsockname) → known-host fallback
-- [ ] 3.4 Port device-description parse + recursive Browse + `<res>` selection; port unit tests (`cargo test -p camera` green against fixtures)
+- [x] 3.1 Move fixtures to `packages/camera/testdata/` (`DmsDesc.xml`, `browse_response.xml`)
+- [x] 3.2 Port model + iSH-safe blocking HTTP client (no socket options) into `packages/camera` (`http.rs`)
+- [x] 3.3 Port discovery: SSDP → local-IP gateway candidates (getsockname) → known-host fallback (`discover.rs`)
+- [x] 3.4 Port device-description parse + recursive Browse + `<res>` selection; public `Camera{connect,discover,list,fetch}` API; 9 unit tests green, zero warnings
 
 ## 4. server lib (proxy + connection state)
 
-- [ ] 4.1 `AppState` with `Mutex<Option<Target>>` + cached `id→photo` map
-- [ ] 4.2 `GET /api/state`, `POST /api/connect` (validate-then-swap), returning JSON state
-- [ ] 4.3 `GET /api/list` against current target; structured not-connected response when none
-- [ ] 4.4 `GET /api/thumb/{id}` / `GET /api/photo/{id}` proxy (Content-Disposition on photo); 404 unknown id
-- [ ] 4.5 Tests with a stub camera: list maps to proxied URLs; connect validates; disconnected list is non-2xx (`cargo test -p server`)
+- [x] 4.1 `AppState` (`state.rs`): `Mutex<Inner{source,photos,last_error}>`; `Source` trait with `RealCamera` + `MockSource` (`source.rs`)
+- [x] 4.2 `GET /api/state`, `POST /api/connect` (validate-then-swap: bad host keeps the current connection), returning JSON state
+- [x] 4.3 `GET /api/list` against current source; 503 + JSON error when not connected
+- [x] 4.4 `GET /api/thumb/{id}` / `GET /api/photo/{id}` proxy (Content-Disposition on photo); 404 unknown id
+- [x] 4.5 Pure `handle()` router + 7 unit tests (mock source); workspace builds zero-warning, `cargo test` green
 
 ## 5. cli bin (embed + serve)
 
-- [ ] 5.1 `packages/cli`: flags `--port`, `--camera-host` (optional hint), `--no-open`, `--mock N`
-- [ ] 5.2 Embed `packages/web/dist` via `rust-embed`; serve at `/`; bind `127.0.0.1`; print URL; start without requiring a camera
+- [x] 5.1 `packages/cli`: flags `--port`, `--no-open`, `--mock N` (no camera-host flag — connecting is web-driven); browser auto-open
+- [x] 5.2 Embed `packages/web/dist` via `rust-embed` (`AssetSource`); serve at `/`; bind `127.0.0.1`; start without a camera (smoke-tested: index + assets + /api/state|list|thumb)
 
 ## 6. web frontend (move + connection UI)
 
-- [ ] 6.1 `git mv web/` → `packages/web/`; fix `vite.config.ts` outDir and the cli embed path
-- [ ] 6.2 Add a connection state machine + connect panel (auto-retry + manual IP input) shown when not connected
-- [ ] 6.3 Toolbar status (active host) + "change camera" control that POSTs `/api/connect` and refreshes
-- [ ] 6.4 `npm run build` emits `packages/web/dist`; gallery still grids/selects/downloads once connected
+- [x] 6.1 `git mv web/` → `packages/web/`; vite outDir resolves to `packages/web/dist`, cli embeds `../web/dist`
+- [x] 6.2 Connection state machine (`App.tsx`) + `ConnectPanel` (auto-discover + manual IP) shown when not connected
+- [x] 6.3 Toolbar host chip (active host) + "change" control reopening the connect panel; `connectCamera()`/`getState()` API
+- [x] 6.4 `npm run build` clean (tsc); `Gallery` keeps date-grouping/multi-select/download once connected (mock screenshots verified)
 
 ## 7. Docs + verify
 
-- [ ] 7.1 Update `CLAUDE.md`, `SPEC.md`, `docs/DEVELOPMENT.md`, `README.md` for Rust + new layout + connection model
-- [ ] 7.2 `cargo fmt --check`, `cargo clippy`, `cargo test` all clean
-- [ ] 7.3 Cross-build `i686-unknown-linux-musl` (iSH) succeeds; binary is static 32-bit ELF
-- [ ] 7.4 Run with `--mock`, open the UI, verify connect panel + change-camera + grid/select/download (screenshot)
+- [x] 7.1 Updated `CLAUDE.md`, `SPEC.md`, `docs/DEVELOPMENT.md`, `README.md` for Rust + new layout + web-driven connection (no `--camera-host`)
+- [x] 7.2 `cargo fmt --check`, `cargo clippy --all-targets`, `cargo test` all clean (5 test binaries)
+- [x] 7.3 Cross-build `i686-unknown-linux-musl` (iSH) succeeds: static 32-bit ELF, ~840 KB
+- [x] 7.4 `--mock` run verified in-browser: gallery + host chip + connect panel (manual IP / auto-discover / cancel) — screenshots

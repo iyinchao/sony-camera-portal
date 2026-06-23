@@ -8,8 +8,33 @@ export interface Photo {
   fullUrl: string
 }
 
-// fetchPhotos loads the gallery. On failure it surfaces the server's JSON error
-// message (e.g. "connect to the camera Wi-Fi") when present.
+// ConnState mirrors /api/state and /api/connect responses.
+export interface ConnState {
+  connected: boolean
+  host: string | null
+  error: string | null
+  photoCount: number
+}
+
+export async function getState(): Promise<ConnState> {
+  const res = await fetch('/api/state')
+  return (await res.json()) as ConnState
+}
+
+// connectCamera sets the camera target. Pass a host to connect to a specific IP,
+// or omit it to auto-discover. Never throws on a failed connection — inspect the
+// returned state's `error` / `connected`.
+export async function connectCamera(host?: string): Promise<ConnState> {
+  const res = await fetch('/api/connect', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(host ? { host } : {}),
+  })
+  return (await res.json()) as ConnState
+}
+
+// fetchPhotos loads the gallery for the currently connected camera. On failure
+// it surfaces the server's JSON error message when present.
 export async function fetchPhotos(signal?: AbortSignal): Promise<Photo[]> {
   const res = await fetch('/api/list', { signal })
   if (!res.ok) {

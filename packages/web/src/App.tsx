@@ -1,233 +1,100 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { fetchPhotos, type Photo } from './api'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { connectCamera, fetchPhotos, getState, type ConnState, type Photo } from './api'
+import ConnectPanel from './ConnectPanel'
+import Gallery from './Gallery'
 import './App.css'
 
-type Status =
-  | { kind: 'loading' }
-  | { kind: 'error'; message: string }
-  | { kind: 'ready' }
-
-interface Group {
-  key: string
-  label: string
-  items: { photo: Photo; index: number }[] // index = global flat index (for shift-range)
-}
-
-function formatDay(key: string): string {
-  if (key === 'unknown') return 'Unknown date'
-  const d = new Date(key + 'T00:00:00')
-  if (isNaN(d.getTime())) return key
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
-}
-
-function groupByDate(photos: Photo[]): Group[] {
-  const map = new Map<string, { photo: Photo; index: number }[]>()
-  const order: string[] = []
-  photos.forEach((photo, index) => {
-    const key = (photo.date || '').slice(0, 10) || 'unknown'
-    if (!map.has(key)) {
-      map.set(key, [])
-      order.push(key)
-    }
-    map.get(key)!.push({ photo, index })
-  })
-  return order.map((key) => ({ key, label: formatDay(key), items: map.get(key)! }))
-}
+type View = 'connecting' | 'connect' | 'gallery'
 
 export default function App() {
+  const [conn, setConn] = useState<ConnState | null>(null)
+  const [view, setView] = useState<View>('connecting')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [photos, setPhotos] = useState<Photo[]>([])
-  const [status, setStatus] = useState<Status>({ kind: 'loading' })
-  const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [anchor, setAnchor] = useState<number | null>(null)
 
-  const load = useCallback((signal?: AbortSignal) => {
-    setStatus({ kind: 'loading' })
-    fetchPhotos(signal)
-      .then((p) => {
-        setPhotos(p)
-        setStatus({ kind: 'ready' })
-      })
-      .catch((e: unknown) => {
-        if (signal?.aborted) return
-        setStatus({ kind: 'error', message: e instanceof Error ? e.message : String(e) })
-      })
+  const loadGallery = useCallback(async () => {
+    const ps = await fetchPhotos()
+    setPhotos(ps)
+    setView('gallery')
   }, [])
 
-  useEffect(() => {
-    const ctrl = new AbortController()
-    load(ctrl.signal)
-    return () => ctrl.abort()
-  }, [load])
-
-  const groups = useMemo(() => groupByDate(photos), [photos])
-
-  // Plain click toggles one; shift-click selects the range from the last anchor.
-  const toggle = useCallback(
-    (index: number, shift: boolean) => {
-      setSelected((prev) => {
-        const next = new Set(prev)
-        if (shift && anchor !== null) {
-          const lo = Math.min(anchor, index)
-          const hi = Math.max(anchor, index)
-          const selecting = !next.has(photos[index].id)
-          for (let i = lo; i <= hi; i++) {
-            if (selecting) next.add(photos[i].id)
-            else next.delete(photos[i].id)
-          }
-        } else {
-          const id = photos[index].id
-          if (next.has(id)) next.delete(id)
-          else next.add(id)
+  // Apply a /api/connect or /api/state result: on success load the gallery,
+  // otherwise show the connect panel with the error.
+  const applyState = useCallback(
+    async (st: ConnState) => {
+      setConn(st)
+      if (st.connected && !st.error) {
+        try {
+          await loadGallery()
+          setError(null)
+          return
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e))
         }
-        return next
-      })
-      setAnchor(index)
-    },
-    [anchor, photos],
-  )
-
-  const toggleGroup = useCallback((g: Group) => {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      const allSelected = g.items.every((it) => next.has(it.photo.id))
-      for (const it of g.items) {
-        if (allSelected) next.delete(it.photo.id)
-        else next.add(it.photo.id)
+      } else {
+        setError(st.error || 'No camera found')
       }
-      return next
-    })
-  }, [])
-
-  const selectAll = useCallback(() => setSelected(new Set(photos.map((p) => p.id))), [photos])
-  const clearSelection = useCallback(() => {
-    setSelected(new Set())
-    setAnchor(null)
-  }, [])
-
-  const downloadSelected = useCallback(() => {
-    const picked = photos.filter((p) => selected.has(p.id))
-    picked.forEach((p, i) => {
-      window.setTimeout(() => {
-        const a = document.createElement('a')
-        a.href = p.fullUrl
-        a.download = p.name
-        document.body.appendChild(a)
-        a.click()
-        a.remove()
-      }, i * 300)
-    })
-  }, [photos, selected])
-
-  const count = selected.size
-
-  return (
-    <div className="app">
-      <header className="toolbar">
-        <div className="brand">
-          <span className="dot" /> Sony Camera Portal
-        </div>
-        <div className="spacer" />
-        {status.kind === 'ready' && (
-          <span className="muted count">
-            {photos.length} photos{count > 0 ? ` · ${count} selected` : ''}
-          </span>
-        )}
-        <button onClick={selectAll} disabled={status.kind !== 'ready' || photos.length === 0}>
-          Select all
-        </button>
-        <button onClick={clearSelection} disabled={count === 0}>
-          Clear
-        </button>
-        <button className="primary" onClick={downloadSelected} disabled={count === 0}>
-          Download{count > 0 ? ` (${count})` : ''}
-        </button>
-      </header>
-
-      {status.kind === 'loading' && <SkeletonGrid />}
-
-      {status.kind === 'error' && (
-        <Centered>
-          <p className="error-title">Couldn’t load photos</p>
-          <p className="muted">{status.message}</p>
-          <p className="muted">
-            Make sure you’re connected to the camera’s Wi-Fi (Select on Smartphone).
-          </p>
-          <button onClick={() => load()}>Retry</button>
-        </Centered>
-      )}
-
-      {status.kind === 'ready' && photos.length === 0 && (
-        <Centered>No photos found on the camera.</Centered>
-      )}
-
-      {status.kind === 'ready' &&
-        groups.map((g) => {
-          const allSel = g.items.every((it) => selected.has(it.photo.id))
-          const someSel = !allSel && g.items.some((it) => selected.has(it.photo.id))
-          return (
-            <section key={g.key} className="group">
-              <div
-                className="date-h"
-                onClick={() => toggleGroup(g)}
-                role="button"
-                tabIndex={0}
-              >
-                <span className={'gcheck' + (allSel ? ' on' : someSel ? ' some' : '')} />
-                <span className="date-label">{g.label}</span>
-                <span className="muted">{g.items.length}</span>
-              </div>
-              <div className="grid">
-                {g.items.map(({ photo, index }) => (
-                  <Tile
-                    key={photo.id}
-                    photo={photo}
-                    selected={selected.has(photo.id)}
-                    onClick={(e) => toggle(index, e.shiftKey)}
-                  />
-                ))}
-              </div>
-            </section>
-          )
-        })}
-    </div>
+      setView('connect')
+    },
+    [loadGallery],
   )
-}
 
-function Tile({
-  photo,
-  selected,
-  onClick,
-}: {
-  photo: Photo
-  selected: boolean
-  onClick: (e: React.MouseEvent) => void
-}) {
-  return (
-    <figure className={selected ? 'tile selected' : 'tile'} onClick={onClick}>
-      <img
-        src={photo.thumbUrl}
-        alt={photo.name}
-        loading="lazy"
-        decoding="async"
-        draggable={false}
-        onLoad={(e) => e.currentTarget.classList.add('loaded')}
+  const autoConnect = useCallback(async () => {
+    setBusy(true)
+    setError(null)
+    setView('connecting')
+    await applyState(await connectCamera())
+    setBusy(false)
+  }, [applyState])
+
+  const manualConnect = useCallback(
+    async (host: string) => {
+      setBusy(true)
+      setError(null)
+      await applyState(await connectCamera(host))
+      setBusy(false)
+    },
+    [applyState],
+  )
+
+  // Bootstrap once: if already connected show the gallery, else auto-discover.
+  const started = useRef(false)
+  useEffect(() => {
+    if (started.current) return
+    started.current = true
+    ;(async () => {
+      try {
+        const st = await getState()
+        if (st.connected) {
+          await applyState(st)
+        } else {
+          await autoConnect()
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+        setView('connect')
+      }
+    })()
+  }, [applyState, autoConnect])
+
+  if (view === 'gallery') {
+    return (
+      <Gallery
+        photos={photos}
+        host={conn?.host ?? null}
+        onChangeCamera={() => setView('connect')}
       />
-      <input type="checkbox" className="check" checked={selected} readOnly tabIndex={-1} />
-      <figcaption title={photo.name}>{photo.name}</figcaption>
-    </figure>
-  )
-}
+    )
+  }
 
-function SkeletonGrid() {
   return (
-    <div className="grid skel-grid">
-      {Array.from({ length: 18 }).map((_, i) => (
-        <div key={i} className="tile skel" />
-      ))}
-    </div>
+    <ConnectPanel
+      busy={busy || view === 'connecting'}
+      error={error}
+      onAuto={autoConnect}
+      onManual={manualConnect}
+      onCancel={conn?.connected ? () => setView('gallery') : undefined}
+    />
   )
-}
-
-function Centered({ children }: { children: ReactNode }) {
-  return <div className="centered">{children}</div>
 }

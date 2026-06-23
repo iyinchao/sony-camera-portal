@@ -204,3 +204,87 @@
     transition: none;
   }
 }
+
+/* ---- Connect panel ---- */
+.connect-card {
+  width: min(420px, 92vw);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px;
+  text-align: left;
+}
+
+.connect-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 17px;
+}
+
+.connect-error {
+  margin: 10px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(231, 76, 60, 0.12);
+  border: 1px solid rgba(231, 76, 60, 0.35);
+  color: #f3a79c;
+  font-size: 13px;
+}
+
+.connect-row {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0 10px;
+}
+
+.ip-input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #0e1116;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.ip-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.connect-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---- Host chip (toolbar) ---- */
+.host-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 999px;
+  background: #0e1116;
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.host-chip .host-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2ecc71;
+}
+
+.host-chip .host-change {
+  color: var(--muted);
+}
+
+.host-chip:hover .host-change {
+  color: var(--accent);
+}

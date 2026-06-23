@@ -12,3 +12,4 @@ path = "src/main.rs"
 [dependencies]
 camera = { path = "../camera" }
 server = { path = "../server" }
+rust-embed = "8"

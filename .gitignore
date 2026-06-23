@@ -17,8 +17,8 @@ docs/prototype/go/web/dist/
 # --- Camera capture: keep *.xml fixtures, ignore run logs ---
 **/testdata/*.log
 
-# --- Dev artifacts ---
-docs/ui-mock.png
+# --- Dev artifacts (debug screenshots, etc.) ---
+docs/ui-*.png
 
 # --- Local / machine-specific ---
 .claude/settings.local.json

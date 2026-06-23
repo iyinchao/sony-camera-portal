@@ -39,8 +39,8 @@ plus scripts/config. We also change the connection model from
   no target ⇒ a structured "not connected" response, not a crash.
 - **Discovery stays layered and iSH-safe** (ported from the PoC): SSDP multicast
   (desktop) → local-IP-derived gateway candidates (getsockname) → known-host
-  fallback → manual `--camera-host` / `/api/connect`. All HTTP uses the
-  hand-rolled blocking client with no socket options.
+  fallback, all behind `/api/connect`; a user-typed IP is the manual override.
+  All HTTP uses the hand-rolled blocking client with no socket options.
 - **`/api/connect` validates before committing.** It fetches+parses DmsDesc for
   the candidate host; only on success does it replace the live target, so a bad
   IP doesn't drop an existing good connection.

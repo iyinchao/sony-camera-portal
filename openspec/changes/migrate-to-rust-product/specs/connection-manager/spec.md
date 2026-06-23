@@ -5,17 +5,20 @@
 The server SHALL start and serve the web UI regardless of whether a camera is
 reachable. Camera connectivity SHALL NOT be a precondition for launch.
 
+The server SHALL NOT connect to a camera on its own; all connecting is driven by
+the web UI (there is no camera-host launch flag).
+
 #### Scenario: Launch with no camera reachable
 
 - **WHEN** the binary is started and no camera is connected
 - **THEN** the HTTP server still binds `127.0.0.1` and serves the web UI at `/`
 - **AND** it does not exit or block waiting for a camera
 
-#### Scenario: Optional initial host hint
+#### Scenario: Startup never contacts a camera
 
-- **WHEN** the user passes `--camera-host <ip>`
-- **THEN** the server records it as the initial target but still starts even if
-  that host is unreachable
+- **WHEN** the binary is started
+- **THEN** no camera connection is attempted until the web UI calls
+  `/api/connect`, so an unreachable camera never delays the server from listening
 
 ### Requirement: Connection state endpoint
 

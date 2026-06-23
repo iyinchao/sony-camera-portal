@@ -56,5 +56,6 @@ auto-discovery is impossible on iSH (iOS blocks multicast).
 - Dependencies (Rust, pure-Rust to keep musl cross clean): `tiny_http`,
   `roxmltree`, `serde`/`serde_json`, `rust-embed`. No async runtime, no HTTP
   client crate (hand-rolled, iSH-safe).
-- Camera host is no longer a hard launch requirement; `--camera-host` becomes an
-  optional initial hint, overridable at runtime via `/api/connect`.
+- The camera host is no longer a launch concern at all: there is no
+  `--camera-host` flag — the web UI drives connecting via `/api/connect`
+  (auto-discover or a typed IP), so the server never blocks on a camera.
