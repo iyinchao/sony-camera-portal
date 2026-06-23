@@ -10,6 +10,7 @@ mod discover;
 mod http;
 mod model;
 
+pub use browse::{BrowsePage, Container};
 pub use model::Photo;
 
 /// The DLNA device-description port Sony cameras serve on.
@@ -58,6 +59,24 @@ impl Camera {
     /// Enumerate every photo on the camera.
     pub fn list(&self) -> Result<Vec<Photo>, String> {
         browse::list_all(&self.control_url, &self.service_type)
+    }
+
+    /// Browse one page `[start, start+count)` of a container's children — the
+    /// building block the server's pager walks for offset/limit pagination.
+    /// `container_id` "0" is the root.
+    pub fn browse_children(
+        &self,
+        container_id: &str,
+        start: usize,
+        count: usize,
+    ) -> Result<BrowsePage, String> {
+        browse::browse_page(
+            &self.control_url,
+            &self.service_type,
+            container_id,
+            start,
+            count,
+        )
     }
 
     /// Fetch raw image bytes + content type for one of a photo's camera media

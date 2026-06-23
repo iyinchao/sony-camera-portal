@@ -1,6 +1,7 @@
 //! Runtime connection state: which camera (if any) is connected, the cached
 //! id→photo map, and the last error. Mutated at runtime by `/api/connect`.
 
+use crate::pager::Page;
 use crate::source::{MockSource, RealCamera, Source};
 use camera::{Camera, Photo};
 use std::collections::HashMap;
@@ -86,15 +87,18 @@ impl AppState {
         }
     }
 
-    /// List photos via the current source and refresh the id→photo cache.
-    pub fn list(&self) -> Result<Vec<Photo>, String> {
+    /// List a page of photos via the current source, merging them into the
+    /// id→photo cache (so the thumb/photo proxy can resolve ids across pages).
+    pub fn list_page(&self, offset: usize, limit: usize) -> Result<Page, String> {
         let mut inner = self.inner.lock().unwrap();
-        let photos = match inner.source.as_ref() {
-            Some(src) => src.list()?,
+        let page = match inner.source.as_ref() {
+            Some(src) => src.list_page(offset, limit)?,
             None => return Err("not connected".into()),
         };
-        inner.photos = photos.iter().map(|p| (p.id.clone(), p.clone())).collect();
-        Ok(photos)
+        for p in &page.photos {
+            inner.photos.insert(p.id.clone(), p.clone());
+        }
+        Ok(page)
     }
 
     pub fn photo(&self, id: &str) -> Option<Photo> {

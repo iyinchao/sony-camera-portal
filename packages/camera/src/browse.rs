@@ -5,6 +5,9 @@ use crate::http::soap_browse;
 use crate::model::Photo;
 use std::collections::HashMap;
 
+/// Items requested per Browse call when draining a container.
+const PAGE: usize = 50;
+
 /// Parse a device description, returning (absolute ContentDirectory controlURL,
 /// serviceType).
 pub(crate) fn parse_device_description(
@@ -51,14 +54,37 @@ fn resolve_url(base: &str, reference: &str) -> String {
     }
 }
 
-struct BrowseResult {
-    items: Vec<Photo>,
-    containers: Vec<String>,
+/// A child container in a Browse result.
+#[derive(Clone, Debug)]
+pub struct Container {
+    pub id: String,
+    pub title: String,
+    pub child_count: Option<usize>,
 }
 
-fn parse_browse(soap_bytes: &[u8]) -> Result<BrowseResult, String> {
+/// One page of a container's children: photos + sub-containers, plus the paging
+/// counters from the Browse response.
+#[derive(Clone, Debug)]
+pub struct BrowsePage {
+    pub items: Vec<Photo>,
+    pub containers: Vec<Container>,
+    pub number_returned: usize,
+    pub total_matches: usize,
+}
+
+fn parse_browse(soap_bytes: &[u8]) -> Result<BrowsePage, String> {
     let soap = String::from_utf8_lossy(soap_bytes);
     let doc = roxmltree::Document::parse(&soap).map_err(|e| e.to_string())?;
+
+    let int_of = |name: &str| -> usize {
+        doc.descendants()
+            .find(|n| n.tag_name().name() == name)
+            .and_then(|n| n.text())
+            .and_then(|t| t.trim().parse().ok())
+            .unwrap_or(0)
+    };
+    let number_returned = int_of("NumberReturned");
+    let total_matches = int_of("TotalMatches");
 
     let result = doc
         .descendants()
@@ -74,9 +100,25 @@ fn parse_browse(soap_bytes: &[u8]) -> Result<BrowseResult, String> {
         for node in ddoc.root_element().children().filter(|n| n.is_element()) {
             match node.tag_name().name() {
                 "container" => {
-                    if let Some(id) = node.attribute("id") {
-                        containers.push(id.to_string());
+                    let id = node.attribute("id").unwrap_or("").to_string();
+                    if id.is_empty() {
+                        continue;
                     }
+                    let child_count = node
+                        .attribute("childCount")
+                        .and_then(|s| s.trim().parse().ok());
+                    let title = node
+                        .children()
+                        .find(|c| c.tag_name().name() == "title")
+                        .and_then(|c| c.text())
+                        .unwrap_or("")
+                        .trim()
+                        .to_string();
+                    containers.push(Container {
+                        id,
+                        title,
+                        child_count,
+                    });
                 }
                 "item" => {
                     let id = node.attribute("id").unwrap_or("").to_string();
@@ -110,7 +152,24 @@ fn parse_browse(soap_bytes: &[u8]) -> Result<BrowseResult, String> {
             }
         }
     }
-    Ok(BrowseResult { items, containers })
+    Ok(BrowsePage {
+        items,
+        containers,
+        number_returned,
+        total_matches,
+    })
+}
+
+/// Browse a single page `[start, start+count)` of a container's children.
+pub(crate) fn browse_page(
+    control_url: &str,
+    service_type: &str,
+    container_id: &str,
+    start: usize,
+    count: usize,
+) -> Result<BrowsePage, String> {
+    let raw = soap_browse(control_url, service_type, container_id, start, count)?;
+    parse_browse(&raw)
 }
 
 /// Extract the DLNA.ORG_PN profile from a protocolInfo string ("" if absent).
@@ -162,7 +221,8 @@ fn select_urls(res: &[(String, String)]) -> (String, String) {
     (thumb, full)
 }
 
-/// Recursively browse from the root, collecting every photo.
+/// Recursively browse from the root, collecting every photo (drains each
+/// container, following paging).
 pub(crate) fn list_all(control_url: &str, service_type: &str) -> Result<Vec<Photo>, String> {
     let mut photos = Vec::new();
     let mut seen: HashMap<String, ()> = HashMap::new();
@@ -172,12 +232,18 @@ pub(crate) fn list_all(control_url: &str, service_type: &str) -> Result<Vec<Phot
             continue;
         }
         seen.insert(id.clone(), ());
-        let raw = soap_browse(control_url, service_type, &id)?;
-        let r = parse_browse(&raw)?;
-        photos.extend(r.items);
-        for c in r.containers {
-            if !seen.contains_key(&c) {
-                queue.push(c);
+        let mut start = 0;
+        loop {
+            let page = browse_page(control_url, service_type, &id, start, PAGE)?;
+            photos.extend(page.items);
+            for c in &page.containers {
+                if !seen.contains_key(&c.id) {
+                    queue.push(c.id.clone());
+                }
+            }
+            start += page.number_returned;
+            if page.number_returned == 0 || start >= page.total_matches {
+                break;
             }
         }
     }
@@ -204,6 +270,8 @@ mod tests {
         let r = parse_browse(BROWSE).unwrap();
         assert_eq!(r.containers.len(), 0);
         assert_eq!(r.items.len(), 4);
+        assert_eq!(r.number_returned, 4);
+        assert_eq!(r.total_matches, 4);
         let p = &r.items[0];
         assert_eq!(p.id, "04_02_0326702136_000001_000001_000000");
         assert_eq!(p.name, "DSC07000.JPG");
@@ -241,5 +309,25 @@ mod tests {
         let (thumb, full) = select_urls(&res);
         assert_eq!(thumb, "http://h/TN.JPG");
         assert_eq!(full, "http://h/ORG.JPG");
+    }
+
+    #[test]
+    fn parses_container_list_with_childcount() {
+        // A grouping Browse: child containers carrying childCount + date titles.
+        let soap = "<?xml version=\"1.0\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body>\
+<u:BrowseResponse xmlns:u=\"urn:schemas-upnp-org:service:ContentDirectory:1\">\
+<Result>&lt;DIDL-Lite xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\"&gt;\
+&lt;container id=\"d1\" childCount=\"6\"&gt;&lt;dc:title&gt;2026-06-01&lt;/dc:title&gt;&lt;/container&gt;\
+&lt;container id=\"d2\" childCount=\"4\"&gt;&lt;dc:title&gt;2026-06-02&lt;/dc:title&gt;&lt;/container&gt;\
+&lt;/DIDL-Lite&gt;</Result><NumberReturned>2</NumberReturned><TotalMatches>2</TotalMatches>\
+</u:BrowseResponse></s:Body></s:Envelope>";
+        let r = parse_browse(soap.as_bytes()).unwrap();
+        assert_eq!(r.items.len(), 0);
+        assert_eq!(r.total_matches, 2);
+        assert_eq!(r.containers.len(), 2);
+        assert_eq!(r.containers[0].id, "d1");
+        assert_eq!(r.containers[0].title, "2026-06-01");
+        assert_eq!(r.containers[0].child_count, Some(6));
+        assert_eq!(r.containers[1].child_count, Some(4));
     }
 }

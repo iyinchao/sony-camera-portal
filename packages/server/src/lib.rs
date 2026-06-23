@@ -5,6 +5,7 @@
 //! Routing is a pure `handle()` function so it can be unit-tested without
 //! binding a socket; `serve()` wires it to `tiny_http`.
 
+mod pager;
 mod source;
 mod state;
 
@@ -70,10 +71,13 @@ pub fn handle(
             }
         }
 
-        ("GET", "/api/list") => match state.list() {
-            Ok(photos) => Response::json(200, list_json(&photos)),
-            Err(e) => Response::json(503, serde_json::json!({ "error": e })),
-        },
+        ("GET", "/api/list") => {
+            let (offset, limit) = parse_page_params(raw_path);
+            match state.list_page(offset, limit) {
+                Ok(page) => Response::json(200, page_json(&page)),
+                Err(e) => Response::json(503, serde_json::json!({ "error": e })),
+            }
+        }
 
         ("GET", p) if p.starts_with("/api/thumb/") => {
             proxy(state, &p["/api/thumb/".len()..], false)
@@ -135,8 +139,27 @@ fn state_json(info: &StateInfo) -> serde_json::Value {
     })
 }
 
-fn list_json(photos: &[camera::Photo]) -> serde_json::Value {
-    let arr: Vec<serde_json::Value> = photos
+/// Parse `?offset=&limit=` (defaults 0 / 60, limit clamped to [1, 500]).
+fn parse_page_params(raw_path: &str) -> (usize, usize) {
+    let mut offset = 0usize;
+    let mut limit = 60usize;
+    if let Some(query) = raw_path.split('?').nth(1) {
+        for kv in query.split('&') {
+            if let Some((k, v)) = kv.split_once('=') {
+                match k {
+                    "offset" => offset = v.parse().unwrap_or(0),
+                    "limit" => limit = v.parse().unwrap_or(60),
+                    _ => {}
+                }
+            }
+        }
+    }
+    (offset, limit.clamp(1, 500))
+}
+
+fn page_json(page: &pager::Page) -> serde_json::Value {
+    let photos: Vec<serde_json::Value> = page
+        .photos
         .iter()
         .map(|p| {
             serde_json::json!({
@@ -148,7 +171,11 @@ fn list_json(photos: &[camera::Photo]) -> serde_json::Value {
             })
         })
         .collect();
-    serde_json::Value::Array(arr)
+    serde_json::json!({
+        "photos": photos,
+        "total": page.total,
+        "hasMore": page.has_more,
+    })
 }
 
 /// Bind `addr` (caller passes a loopback address) and serve requests until the
@@ -226,20 +253,37 @@ mod tests {
         let r = req(&state, "GET", "/api/list");
         assert_eq!(r.status, 200);
         let v: serde_json::Value = serde_json::from_slice(&r.body).unwrap();
-        let arr = v.as_array().unwrap();
+        let arr = v["photos"].as_array().unwrap();
         assert_eq!(arr.len(), 3);
+        assert_eq!(v["total"], 3);
+        assert_eq!(v["hasMore"], false);
         let id = arr[0]["id"].as_str().unwrap();
         assert_eq!(arr[0]["thumbUrl"], format!("/api/thumb/{id}"));
         assert_eq!(arr[0]["fullUrl"], format!("/api/photo/{id}"));
     }
 
     #[test]
+    fn paginates_without_overlap() {
+        let state = AppState::with_mock(10);
+        let p1: serde_json::Value =
+            serde_json::from_slice(&req(&state, "GET", "/api/list?offset=0&limit=4").body).unwrap();
+        assert_eq!(p1["photos"].as_array().unwrap().len(), 4);
+        assert_eq!(p1["total"], 10);
+        assert_eq!(p1["hasMore"], true);
+
+        let p_last: serde_json::Value =
+            serde_json::from_slice(&req(&state, "GET", "/api/list?offset=8&limit=4").body).unwrap();
+        assert_eq!(p_last["photos"].as_array().unwrap().len(), 2);
+        assert_eq!(p_last["hasMore"], false);
+        assert_ne!(p1["photos"][0]["id"], p_last["photos"][0]["id"]);
+    }
+
+    #[test]
     fn mock_thumb_is_svg_after_list() {
         let state = AppState::with_mock(2);
-        let _ = req(&state, "GET", "/api/list"); // populate cache
         let list: serde_json::Value =
             serde_json::from_slice(&req(&state, "GET", "/api/list").body).unwrap();
-        let id = list[0]["id"].as_str().unwrap().to_string();
+        let id = list["photos"][0]["id"].as_str().unwrap().to_string();
         let r = req(&state, "GET", &format!("/api/thumb/{id}"));
         assert_eq!(r.status, 200);
         assert!(r.content_type.contains("svg"));
@@ -250,7 +294,7 @@ mod tests {
         let state = AppState::with_mock(1);
         let list: serde_json::Value =
             serde_json::from_slice(&req(&state, "GET", "/api/list").body).unwrap();
-        let id = list[0]["id"].as_str().unwrap().to_string();
+        let id = list["photos"][0]["id"].as_str().unwrap().to_string();
         let r = req(&state, "GET", &format!("/api/photo/{id}"));
         assert_eq!(r.status, 200);
         assert!(r

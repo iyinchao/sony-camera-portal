@@ -1,24 +1,31 @@
 //! A photo Source backs the gallery: a real camera, or synthetic mock data for
 //! UI dev without a camera. The server holds at most one connected Source.
 
+use crate::pager::{Page, Pager};
 use camera::{Camera, Photo};
+use std::sync::Mutex;
 
 pub trait Source: Send {
     /// A human label for the active source (e.g. the camera host).
     fn host(&self) -> String;
-    fn list(&self) -> Result<Vec<Photo>, String>;
+    /// Return photos `[offset, offset+limit)` plus paging metadata.
+    fn list_page(&self, offset: usize, limit: usize) -> Result<Page, String>;
     fn fetch_thumb(&self, photo: &Photo) -> Result<(Vec<u8>, String), String>;
     fn fetch_full(&self, photo: &Photo) -> Result<(Vec<u8>, String), String>;
 }
 
-/// A real camera connected over its Wi-Fi AP.
+/// A real camera connected over its Wi-Fi AP, paginated lazily by a `Pager`.
 pub struct RealCamera {
     cam: Camera,
+    pager: Mutex<Pager>,
 }
 
 impl RealCamera {
     pub fn new(cam: Camera) -> Self {
-        Self { cam }
+        Self {
+            cam,
+            pager: Mutex::new(Pager::new()),
+        }
     }
 }
 
@@ -26,8 +33,8 @@ impl Source for RealCamera {
     fn host(&self) -> String {
         self.cam.host().to_string()
     }
-    fn list(&self) -> Result<Vec<Photo>, String> {
-        self.cam.list()
+    fn list_page(&self, offset: usize, limit: usize) -> Result<Page, String> {
+        self.pager.lock().unwrap().page(&self.cam, offset, limit)
     }
     fn fetch_thumb(&self, photo: &Photo) -> Result<(Vec<u8>, String), String> {
         self.cam.fetch(&photo.thumb_url)
@@ -39,21 +46,34 @@ impl Source for RealCamera {
 
 /// Synthetic photos with SVG placeholder images (`--mock N`).
 pub struct MockSource {
-    n: usize,
+    photos: Vec<Photo>,
 }
 
 impl MockSource {
     pub fn new(n: usize) -> Self {
-        Self { n }
+        Self {
+            photos: (0..n).map(mock_photo).collect(),
+        }
     }
 }
 
 impl Source for MockSource {
     fn host(&self) -> String {
-        format!("mock ({} photos)", self.n)
+        format!("mock ({} photos)", self.photos.len())
     }
-    fn list(&self) -> Result<Vec<Photo>, String> {
-        Ok((0..self.n).map(mock_photo).collect())
+    fn list_page(&self, offset: usize, limit: usize) -> Result<Page, String> {
+        let total = self.photos.len();
+        let end = (offset + limit).min(total);
+        let photos = if offset < total {
+            self.photos[offset..end].to_vec()
+        } else {
+            Vec::new()
+        };
+        Ok(Page {
+            photos,
+            total: Some(total),
+            has_more: end < total,
+        })
     }
     fn fetch_thumb(&self, photo: &Photo) -> Result<(Vec<u8>, String), String> {
         Ok((

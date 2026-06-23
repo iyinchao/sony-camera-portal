@@ -105,18 +105,21 @@ pub(crate) fn http_get_bytes(url: &str) -> Result<(Vec<u8>, String), String> {
     ))
 }
 
-/// Issue a ContentDirectory `Browse` SOAP action, retrying transient 503s.
+/// Issue a ContentDirectory `Browse` SOAP action (BrowseDirectChildren) for a
+/// page `[start, start+count)`, retrying transient 503s.
 pub(crate) fn soap_browse(
     control_url: &str,
     service_type: &str,
     object_id: &str,
+    start: usize,
+    count: usize,
 ) -> Result<Vec<u8>, String> {
     let body = format!(
         "<?xml version=\"1.0\" encoding=\"utf-8\"?>\
 <s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">\
 <s:Body><u:Browse xmlns:u=\"{st}\"><ObjectID>{oid}</ObjectID>\
 <BrowseFlag>BrowseDirectChildren</BrowseFlag><Filter>*</Filter>\
-<StartingIndex>0</StartingIndex><RequestedCount>50</RequestedCount>\
+<StartingIndex>{start}</StartingIndex><RequestedCount>{count}</RequestedCount>\
 <SortCriteria></SortCriteria></u:Browse></s:Body></s:Envelope>",
         st = service_type,
         oid = object_id

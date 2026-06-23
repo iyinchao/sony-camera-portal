@@ -33,10 +33,21 @@ export async function connectCamera(host?: string): Promise<ConnState> {
   return (await res.json()) as ConnState
 }
 
-// fetchPhotos loads the gallery for the currently connected camera. On failure
-// it surfaces the server's JSON error message when present.
-export async function fetchPhotos(signal?: AbortSignal): Promise<Photo[]> {
-  const res = await fetch('/api/list', { signal })
+// A page of the gallery (mirrors GET /api/list?offset&limit).
+export interface PhotoPage {
+  photos: Photo[]
+  total: number | null
+  hasMore: boolean
+}
+
+// fetchPage loads one page of photos for the connected camera. On failure it
+// surfaces the server's JSON error message when present.
+export async function fetchPage(
+  offset: number,
+  limit: number,
+  signal?: AbortSignal,
+): Promise<PhotoPage> {
+  const res = await fetch(`/api/list?offset=${offset}&limit=${limit}`, { signal })
   if (!res.ok) {
     let message = `Request failed (HTTP ${res.status})`
     try {
@@ -47,5 +58,13 @@ export async function fetchPhotos(signal?: AbortSignal): Promise<Photo[]> {
     }
     throw new Error(message)
   }
-  return (await res.json()) as Photo[]
+  return (await res.json()) as PhotoPage
+}
+
+// fetchPhotos loads the gallery. TODO(infinite-scroll): replaced by paged
+// fetchPage in the frontend rework; for now it loads a large first page so the
+// existing UI keeps working against the paginated API.
+export async function fetchPhotos(signal?: AbortSignal): Promise<Photo[]> {
+  const page = await fetchPage(0, 500, signal)
+  return page.photos
 }
