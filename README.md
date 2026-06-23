@@ -44,7 +44,15 @@ cargo run -- --mock 24            # auto-opens the browser
 
 For **frontend work with hot-reload**, run the Rust backend and the Vite dev
 server side by side — Vite proxies `/api` to the backend, so you get HMR on the
-React source with mock data:
+React source with mock data. One command starts both:
+
+```sh
+./scripts/dev.sh          # backend (mock) + Vite HMR; open http://localhost:5173
+./scripts/dev.sh 100      # 100 mock photos
+./scripts/dev-stop.sh     # stop both
+```
+
+Or run them in two terminals:
 
 ```sh
 # terminal 1 — Rust backend serving the mock /api

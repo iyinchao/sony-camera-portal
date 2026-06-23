@@ -26,3 +26,6 @@ docs/ui-*.png
 # --- OS / editor ---
 .DS_Store
 *.swp
+
+# --- dev.sh runtime (pids/logs) ---
+.dev/

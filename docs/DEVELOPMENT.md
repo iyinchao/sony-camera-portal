@@ -58,7 +58,12 @@ cargo build --release               # 产物 target/release/sony-camera-portal
 > 连接由 web UI 驱动：没有 `--camera-host`。要连真机就在网页连接面板里输 IP，或让它自动发现。
 
 ### ⭐ 前端热更新（改 React 即时看到效果）
-两个终端：
+一键起（后端 mock + Vite HMR，nohup 脱离会话）：
+```bash
+./scripts/dev.sh          # 默认 mock 24；./scripts/dev.sh 100 → 100 张
+./scripts/dev-stop.sh     # 关闭两个服务
+```
+或手动两个终端：
 ```bash
 # 终端 1 — Rust 后端只提供 mock 的 /api
 cargo run -- --port 8080 --mock 24 --no-open
