@@ -2,6 +2,7 @@
 
 - [ ] 1.1 Add Tailwind v4 (`@tailwindcss/vite`), `clsx` + `tailwind-merge` (`cn()`), `cva`; `@/` path alias (tsconfig + vite); `npm run build` clean
 - [ ] 1.2 Centralize `.dev/prompt.md` tokens as CSS variables + Tailwind theme (light bg `#FAFAFA`, slate text, Electric Blue accent gradient, border/card, shadow scale incl. `shadow-accent`, radii)
+- [ ] 1.2b Dark token set under `@media (prefers-color-scheme: dark)` (dark slate canvas, elevated cards, light text, same accent) + `color-scheme`; UI follows the OS theme automatically
 - [ ] 1.3 Self-host fonts via `@fontsource/{inter,calistoga,jetbrains-mono}` (no Google Fonts CDN); wire Calistoga=display, Inter=UI, JetBrains Mono=labels
 
 ## 2. Component layer (Radix-backed, cva)
@@ -28,6 +29,6 @@
 
 ## 6. Verify + docs
 
-- [ ] 6.1 `npm run build` clean; `cargo run -- --mock 200` then in-browser: scroll loads pages, click-preview works, select/shift/per-day/download intact, change-camera resets — screenshot
+- [ ] 6.1 `npm run build` clean; `cargo run -- --mock 200` then in-browser: scroll loads pages, click-preview works, select/shift/per-day/download intact, change-camera resets; verify light + dark (emulate `prefers-color-scheme`) — screenshots
 - [ ] 6.2 Offline check: built bundle has no external font/CDN URLs; `cargo fmt/clippy/test` + i686-musl cross-build still green
 - [ ] 6.3 Update README / docs / CLAUDE for the new UI (design system, infinite scroll, lightbox)

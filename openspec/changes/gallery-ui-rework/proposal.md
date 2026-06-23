@@ -15,6 +15,9 @@ design system** in `.dev/prompt.md` on a **Tailwind + Radix** component layer,
   UI / JetBrains Mono labels), pill section-labels, gradient buttons, soft
   shadows, and subtle motion. Tokens centralized as CSS variables / Tailwind
   theme.
+- **Auto dark/light**: tokens are defined for light and overridden under
+  `@media (prefers-color-scheme: dark)`, so the UI follows the OS theme
+  automatically (the Electric Blue accent works in both). No manual toggle in v1.
 - **Tailwind v4 + Radix**: `@tailwindcss/vite`, a `cn()` helper (`clsx` +
   `tailwind-merge`), `cva` for component variants, `@radix-ui/react-*` primitives
   (Dialog, Checkbox). `@/` path alias.
@@ -44,8 +47,8 @@ design system** in `.dev/prompt.md` on a **Tailwind + Radix** component layer,
   + `@tailwindcss/vite`, `@radix-ui/react-*`, `clsx`, `tailwind-merge`, `cva`,
   `react-photo-view`, `@fontsource/{inter,calistoga,jetbrains-mono}`, optionally
   `framer-motion`. No backend changes.
-- Theme flips from dark to light — `index.css` / `App.css` are replaced by the
-  Tailwind theme + token variables.
+- Theming: `index.css` / `App.css` are replaced by the Tailwind theme + token
+  variables, with light + dark sets that follow `prefers-color-scheme`.
 - Preview loads a photo's `fullUrl` (the original). It can be heavy over the
   camera AP; a medium-resolution proxy route is a possible later backend nicety
   (out of scope here).

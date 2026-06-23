@@ -37,6 +37,23 @@ what is loaded (e.g. show loaded vs total counts).
 - **THEN** all loaded photos become selected, and the count reflects loaded (not
   the camera's full total)
 
+### Requirement: Theme follows the system color scheme
+
+The UI SHALL support both light and dark themes and SHALL follow the operating
+system's `prefers-color-scheme` automatically (no manual toggle required), with
+the accent and all components legible (WCAG AA) in both.
+
+#### Scenario: System is in light mode
+
+- **WHEN** the OS color scheme is light
+- **THEN** the UI renders the light theme (off-white canvas, slate text)
+
+#### Scenario: System is in dark mode
+
+- **WHEN** the OS color scheme is dark
+- **THEN** the UI renders the dark theme (dark canvas, light text), and switches
+  live if the OS setting changes
+
 ### Requirement: Click-to-preview lightbox
 
 Clicking a photo's image SHALL open a full-size, zoomable/swipeable preview;

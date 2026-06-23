@@ -32,6 +32,14 @@ CDN) — so fonts are self-hosted.
   `--accent-secondary:#4D7CFF`, `--border:#E2E8F0`, `--card:#FFFFFF`; the signature
   gradient `linear-gradient(135deg,#0052FF,#4D7CFF)`; shadow scale incl.
   `shadow-accent`. One source of truth; no one-off colors.
+- **Auto light/dark via `prefers-color-scheme`.** The light tokens are the
+  default `:root`; a `@media (prefers-color-scheme: dark)` block overrides them
+  with a dark set (dark slate canvas `#0F172A`, elevated `#1E293B` cards, light
+  text, same Electric Blue accent — tuned for contrast). Every component reads the
+  CSS variables, so the whole UI follows the OS theme with no JS. Tailwind v4's
+  `dark:` variant (keyed off `prefers-color-scheme`) covers the few per-theme
+  utilities; set `color-scheme` so native controls/scrollbars match. No manual
+  toggle in v1 (a future `data-theme` override of the same variables could add one).
 - **Self-hosted fonts (offline).** `@fontsource/inter`, `@fontsource/calistoga`,
   `@fontsource/jetbrains-mono` imported in code → Vite bundles the woff2 locally.
   Calistoga for the brand/headings, Inter for UI/body, JetBrains Mono for the
