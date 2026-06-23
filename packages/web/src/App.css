@@ -127,7 +127,6 @@
   overflow: hidden;
   background: var(--card);
   box-shadow: var(--shadow-sm);
-  cursor: pointer;
   user-select: none;
   /* Browser skips layout/paint for off-screen tiles → smooth with many photos. */
   content-visibility: auto;

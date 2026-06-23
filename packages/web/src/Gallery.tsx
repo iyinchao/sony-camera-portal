@@ -1,4 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
+import { PhotoProvider, PhotoView } from 'react-photo-view'
+import 'react-photo-view/dist/react-photo-view.css'
 import type { Photo } from './api'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -129,56 +131,67 @@ export default function Gallery({
 
       {photos.length === 0 && <div className="centered">No photos found on the camera.</div>}
 
-      {groups.map((g) => {
-        const allSel = g.items.every((it) => selected.has(it.photo.id))
-        const someSel = !allSel && g.items.some((it) => selected.has(it.photo.id))
-        return (
-          <section key={g.key} className="group">
-            <div className="date-h" onClick={() => toggleGroup(g)} role="button" tabIndex={0}>
-              <span className={'gcheck' + (allSel ? ' on' : someSel ? ' some' : '')} />
-              <span className="date-label">{g.label}</span>
-              <span className="muted">{g.items.length}</span>
-            </div>
-            <div className="grid">
-              {g.items.map(({ photo, index }) => (
-                <Tile
-                  key={photo.id}
-                  photo={photo}
-                  selected={selected.has(photo.id)}
-                  onClick={(e) => toggle(index, e.shiftKey)}
-                />
-              ))}
-            </div>
-          </section>
-        )
-      })}
+      <PhotoProvider>
+        {groups.map((g) => {
+          const allSel = g.items.every((it) => selected.has(it.photo.id))
+          const someSel = !allSel && g.items.some((it) => selected.has(it.photo.id))
+          return (
+            <section key={g.key} className="group">
+              <div className="date-h" onClick={() => toggleGroup(g)} role="button" tabIndex={0}>
+                <span className={'gcheck' + (allSel ? ' on' : someSel ? ' some' : '')} />
+                <span className="date-label">{g.label}</span>
+                <span className="muted">{g.items.length}</span>
+              </div>
+              <div className="grid">
+                {g.items.map(({ photo, index }) => (
+                  <Tile
+                    key={photo.id}
+                    photo={photo}
+                    selected={selected.has(photo.id)}
+                    onToggle={(shift) => toggle(index, shift)}
+                  />
+                ))}
+              </div>
+            </section>
+          )
+        })}
+      </PhotoProvider>
     </div>
   )
 }
 
+// A tile: click the image to preview (lightbox), click the checkbox to select.
+// The two actions are kept separate so they don't conflict.
 function Tile({
   photo,
   selected,
-  onClick,
+  onToggle,
 }: {
   photo: Photo
   selected: boolean
-  onClick: (e: React.MouseEvent) => void
+  onToggle: (shift: boolean) => void
 }) {
   return (
-    <figure className={selected ? 'tile selected' : 'tile'} onClick={onClick}>
-      <img
-        src={photo.thumbUrl}
-        alt={photo.name}
-        loading="lazy"
-        decoding="async"
-        draggable={false}
-        onLoad={(e) => e.currentTarget.classList.add('loaded')}
-      />
+    <figure className={selected ? 'tile selected' : 'tile'}>
+      <PhotoView src={photo.fullUrl}>
+        <img
+          src={photo.thumbUrl}
+          alt={photo.name}
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          className="cursor-zoom-in"
+          onLoad={(e) => e.currentTarget.classList.add('loaded')}
+        />
+      </PhotoView>
       <Checkbox
         checked={selected}
-        tabIndex={-1}
-        className="pointer-events-none absolute left-2 top-2"
+        onCheckedChange={() => {}}
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggle(e.shiftKey)
+        }}
+        className="absolute left-2 top-2 cursor-pointer"
       />
       <figcaption title={photo.name}>{photo.name}</figcaption>
     </figure>

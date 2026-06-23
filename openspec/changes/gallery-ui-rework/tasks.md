@@ -19,8 +19,8 @@
 
 ## 4. Lightbox (react-photo-view)
 
-- [ ] 4.1 Add `react-photo-view`; `PhotoProvider` at the grid root, tiles' images in `PhotoView src={fullUrl}`; thumbnail as the immediate image
-- [ ] 4.2 Click image → preview (zoom/swipe/next-prev); checkbox stays the select control (no conflict)
+- [x] 4.1 Added `react-photo-view`; `PhotoProvider` wraps the date-group grid, each tile's `<img>` in `PhotoView src={fullUrl}` (thumbnail is the trigger image)
+- [x] 4.2 Click image → zoom/swipe lightbox; selection moved to the interactive `Checkbox` (stopPropagation + shift-range), so preview vs select no longer conflict — confirmed working
 
 ## 5. Motion + polish
 
