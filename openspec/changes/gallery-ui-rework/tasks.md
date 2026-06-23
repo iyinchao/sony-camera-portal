@@ -13,9 +13,9 @@
 
 ## 3. Infinite scroll
 
-- [ ] 3.1 `api.ts`: `fetchPage(offset, limit)`; remove the temporary `fetchPhotos` adapter
-- [ ] 3.2 `Gallery`: flat `photos` + `offset`/`hasMore`/`loading`/`total`; page 0 on mount; IntersectionObserver sentinel → guarded `loadMore()`; append + re-group by date; remount/reset on reconnect (key by host)
-- [ ] 3.3 Selection over loaded photos (shift-range, per-day, select-all-loaded); header shows loaded (+ total when known)
+- [x] 3.1 `api.ts`: `fetchPage(offset, limit)` only; removed the temporary `fetchPhotos` adapter; App no longer pre-fetches (Gallery owns paging, keyed by host so reconnect resets)
+- [x] 3.2 `Gallery`: flat `photos` + `offsetRef`/`hasMore`/`loading`/`total`; page 0 on mount; IntersectionObserver sentinel (800px) → guarded `loadMore()` (loadingRef/doneRef); append + re-group. Verified: 60→120→180→200 then stop; requests offset=0/60/120/180, no dupes
+- [x] 3.3 Selection over loaded photos (shift-range, per-day, select-all-loaded); header shows `loaded / total photos`; skeleton/loading/end/error+retry states
 
 ## 4. Lightbox (react-photo-view)
 

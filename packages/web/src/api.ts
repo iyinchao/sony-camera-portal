@@ -60,11 +60,3 @@ export async function fetchPage(
   }
   return (await res.json()) as PhotoPage
 }
-
-// fetchPhotos loads the gallery. TODO(infinite-scroll): replaced by paged
-// fetchPage in the frontend rework; for now it loads a large first page so the
-// existing UI keeps working against the paginated API.
-export async function fetchPhotos(signal?: AbortSignal): Promise<Photo[]> {
-  const page = await fetchPage(0, 500, signal)
-  return page.photos
-}

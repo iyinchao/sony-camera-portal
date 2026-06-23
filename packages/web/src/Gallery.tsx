@@ -1,9 +1,12 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PhotoProvider, PhotoView } from 'react-photo-view'
 import 'react-photo-view/dist/react-photo-view.css'
-import type { Photo } from './api'
+import { Loader2 } from 'lucide-react'
+import { fetchPage, type Photo } from './api'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+
+const PAGE_LIMIT = 60
 
 interface Group {
   key: string
@@ -33,16 +36,64 @@ function groupByDate(photos: Photo[]): Group[] {
 }
 
 export default function Gallery({
-  photos,
   host,
   onChangeCamera,
 }: {
-  photos: Photo[]
   host: string | null
   onChangeCamera: () => void
 }) {
+  const [photos, setPhotos] = useState<Photo[]>([])
+  const [total, setTotal] = useState<number | null>(null)
+  const [hasMore, setHasMore] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [anchor, setAnchor] = useState<number | null>(null)
+
+  const offsetRef = useRef(0)
+  const loadingRef = useRef(false)
+  const doneRef = useRef(false)
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+
+  // Fetch the next page and append. Guards against concurrent/after-end calls.
+  const loadMore = useCallback(async () => {
+    if (loadingRef.current || doneRef.current) return
+    loadingRef.current = true
+    setLoading(true)
+    setError(null)
+    try {
+      const page = await fetchPage(offsetRef.current, PAGE_LIMIT)
+      offsetRef.current += page.photos.length
+      if (!page.hasMore || page.photos.length === 0) doneRef.current = true
+      setPhotos((prev) => [...prev, ...page.photos])
+      setTotal(page.total)
+      setHasMore(page.hasMore && page.photos.length > 0)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      loadingRef.current = false
+      setLoading(false)
+    }
+  }, [])
+
+  // First page on mount.
+  useEffect(() => {
+    loadMore()
+  }, [loadMore])
+
+  // Load more as the bottom sentinel approaches (also auto-fills short pages).
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) loadMore()
+      },
+      { rootMargin: '800px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [loadMore])
 
   const groups = useMemo(() => groupByDate(photos), [photos])
 
@@ -104,6 +155,7 @@ export default function Gallery({
   }, [photos, selected])
 
   const count = selected.size
+  const loaded = photos.length
 
   return (
     <div className="app">
@@ -116,9 +168,10 @@ export default function Gallery({
         </button>
         <div className="spacer" />
         <span className="muted count">
-          {photos.length} photos{count > 0 ? ` · ${count} selected` : ''}
+          {loaded}
+          {total != null ? ` / ${total}` : ''} photos{count > 0 ? ` · ${count} selected` : ''}
         </span>
-        <Button variant="ghost" size="sm" onClick={selectAll} disabled={photos.length === 0}>
+        <Button variant="ghost" size="sm" onClick={selectAll} disabled={loaded === 0}>
           Select all
         </Button>
         <Button variant="ghost" size="sm" onClick={clearSelection} disabled={count === 0}>
@@ -129,7 +182,17 @@ export default function Gallery({
         </Button>
       </header>
 
-      {photos.length === 0 && <div className="centered">No photos found on the camera.</div>}
+      {loaded === 0 && loading && <SkeletonGrid />}
+      {loaded === 0 && !loading && error && (
+        <div className="centered">
+          <p className="error-title">Couldn’t load photos</p>
+          <p className="muted">{error}</p>
+          <Button onClick={() => loadMore()}>Retry</Button>
+        </div>
+      )}
+      {loaded === 0 && !loading && !error && !hasMore && (
+        <div className="centered">No photos found on the camera.</div>
+      )}
 
       <PhotoProvider>
         {groups.map((g) => {
@@ -156,6 +219,37 @@ export default function Gallery({
           )
         })}
       </PhotoProvider>
+
+      {/* Infinite-scroll sentinel + status */}
+      <div ref={sentinelRef} aria-hidden className="h-px w-full" />
+      {loading && loaded > 0 && (
+        <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading more…
+        </div>
+      )}
+      {error && loaded > 0 && (
+        <div className="flex items-center justify-center gap-3 py-6 text-sm">
+          <span className="text-destructive">{error}</span>
+          <Button size="sm" onClick={() => loadMore()}>
+            Retry
+          </Button>
+        </div>
+      )}
+      {!hasMore && loaded > 0 && (
+        <div className="py-6 text-center text-xs text-muted-foreground">
+          All {loaded} photos loaded
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SkeletonGrid() {
+  return (
+    <div className="grid">
+      {Array.from({ length: 18 }).map((_, i) => (
+        <div key={i} className="tile skel" />
+      ))}
     </div>
   )
 }
