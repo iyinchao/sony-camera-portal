@@ -12,7 +12,7 @@ CDN) — so fonts are self-hosted.
 **Goals:**
 - Centralize the `.dev/prompt.md` tokens (color, type, spacing, shadow, radius)
   as CSS variables + Tailwind theme; build reusable Button/Card/Dialog/Checkbox.
-- Light theme, Electric Blue accent gradient, dual-font typography.
+- Light theme, Electric Blue accent gradient, system sans-serif typography.
 - Infinite scroll; click-to-preview lightbox; preserve select/download/connect.
 - Offline preserved (self-hosted fonts, locally-bundled deps).
 - Accessible (WCAG AA contrast, focus rings, 44px touch targets, reduced-motion).
@@ -40,10 +40,13 @@ CDN) — so fonts are self-hosted.
   `dark:` variant (keyed off `prefers-color-scheme`) covers the few per-theme
   utilities; set `color-scheme` so native controls/scrollbars match. No manual
   toggle in v1 (a future `data-theme` override of the same variables could add one).
-- **Self-hosted fonts (offline).** `@fontsource/inter`, `@fontsource/calistoga`,
-  `@fontsource/jetbrains-mono` imported in code → Vite bundles the woff2 locally.
-  Calistoga for the brand/headings, Inter for UI/body, JetBrains Mono for the
-  pill section-labels. NOT the Google Fonts CDN.
+- **System sans-serif typography (no web fonts).** Use the OS font stack
+  (`system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`)
+  for everything; the design's Calistoga/Inter/JetBrains Mono is dropped, with
+  hierarchy expressed via weight/size/letter-spacing instead of font family. No
+  `@fontsource`/woff2 to bundle — smaller binary, instant render, inherently
+  offline. (Section-label "mono" feel can use slightly wider tracking + uppercase
+  in the system font.)
 - **Components: cva + tailwind-merge, Radix-backed.** Local `Button`, `Card`,
   `Badge` (section-label), Radix `Dialog` (connect), Radix `Checkbox` (tile
   select) — shadcn-style API, styled to the design system. `cn()` = `clsx` +
@@ -75,8 +78,8 @@ CDN) — so fonts are self-hosted.
   CSS transitions; respect reduced-motion.
 - [Preview loads the original (heavy on AP)] → acceptable for v1 with a thumb
   placeholder; flag a medium-res proxy as a follow-up.
-- [Offline regression via fonts] → `@fontsource` only; CI/build check that the
-  bundle has no external font/CDN URLs.
+- [Offline regression via CDN refs] → system fonts (no web fonts at all);
+  CI/build check that the bundle has no external CDN URLs.
 
 ## Open Questions
 

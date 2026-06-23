@@ -3,7 +3,7 @@
 - [ ] 1.1 Add Tailwind v4 (`@tailwindcss/vite`), `clsx` + `tailwind-merge` (`cn()`), `cva`; `@/` path alias (tsconfig + vite); `npm run build` clean
 - [ ] 1.2 Centralize `.dev/prompt.md` tokens as CSS variables + Tailwind theme (light bg `#FAFAFA`, slate text, Electric Blue accent gradient, border/card, shadow scale incl. `shadow-accent`, radii)
 - [ ] 1.2b Dark token set under `@media (prefers-color-scheme: dark)` (dark slate canvas, elevated cards, light text, same accent) + `color-scheme`; UI follows the OS theme automatically
-- [ ] 1.3 Self-host fonts via `@fontsource/{inter,calistoga,jetbrains-mono}` (no Google Fonts CDN); wire Calistoga=display, Inter=UI, JetBrains Mono=labels
+- [ ] 1.3 Typography = system sans-serif stack (`system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`); no web fonts; hierarchy via weight/size/tracking
 
 ## 2. Component layer (Radix-backed, cva)
 

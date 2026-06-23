@@ -11,18 +11,17 @@ design system** in `.dev/prompt.md` on a **Tailwind + Radix** component layer,
 
 - **Design system** (`.dev/prompt.md`): switch to the light "Minimalist Modern"
   look — off-white canvas (`#FAFAFA`), slate text, the Electric Blue accent
-  gradient (`#0052FF → #4D7CFF`), dual-font typography (Calistoga display / Inter
-  UI / JetBrains Mono labels), pill section-labels, gradient buttons, soft
+  gradient (`#0052FF → #4D7CFF`), pill section-labels, gradient buttons, soft
   shadows, and subtle motion. Tokens centralized as CSS variables / Tailwind
-  theme.
+  theme. **Typography uses the system sans-serif stack** (no web fonts) — the
+  design's dual-font (Calistoga/Inter/JetBrains Mono) is replaced by one system
+  sans, with hierarchy via weight/size; keeps it lightweight and always offline.
 - **Auto dark/light**: tokens are defined for light and overridden under
   `@media (prefers-color-scheme: dark)`, so the UI follows the OS theme
   automatically (the Electric Blue accent works in both). No manual toggle in v1.
 - **Tailwind v4 + Radix**: `@tailwindcss/vite`, a `cn()` helper (`clsx` +
   `tailwind-merge`), `cva` for component variants, `@radix-ui/react-*` primitives
   (Dialog, Checkbox). `@/` path alias.
-- **Self-hosted fonts** via `@fontsource/*` (Inter, Calistoga, JetBrains Mono) —
-  NOT Google Fonts CDN, so runtime stays fully offline.
 - **Infinite scroll**: replace the load-everything `fetchPhotos` with paged
   `fetchPage(offset, limit)`; flat `photos` + `offset`/`hasMore`, an
   IntersectionObserver sentinel appends pages. Preserve date-grouping,
@@ -45,8 +44,8 @@ design system** in `.dev/prompt.md` on a **Tailwind + Radix** component layer,
 
 - Frontend deps (build-time, bundled locally — no runtime CDN): `tailwindcss` v4
   + `@tailwindcss/vite`, `@radix-ui/react-*`, `clsx`, `tailwind-merge`, `cva`,
-  `react-photo-view`, `@fontsource/{inter,calistoga,jetbrains-mono}`, optionally
-  `framer-motion`. No backend changes.
+  `react-photo-view`, optionally `framer-motion`. No web fonts (system stack), no
+  backend changes.
 - Theming: `index.css` / `App.css` are replaced by the Tailwind theme + token
   variables, with light + dark sets that follow `prefers-color-scheme`.
 - Preview loads a photo's `fullUrl` (the original). It can be heavy over the
