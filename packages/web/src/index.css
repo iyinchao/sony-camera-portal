@@ -20,6 +20,7 @@
   --color-accent: var(--accent);
   --color-accent-secondary: var(--accent-secondary);
   --color-accent-foreground: #ffffff;
+  --color-destructive: var(--destructive);
 
   --radius: 0.75rem;
 
@@ -38,6 +39,7 @@
   --border: #e2e8f0;
   --accent: #0052ff;
   --accent-secondary: #4d7cff;
+  --destructive: #e11d48;
   color-scheme: light dark;
 }
 
@@ -51,6 +53,7 @@
     --border: #283449;
     --accent: #3b82f6;
     --accent-secondary: #4d7cff;
+    --destructive: #fb7185;
   }
 }
 

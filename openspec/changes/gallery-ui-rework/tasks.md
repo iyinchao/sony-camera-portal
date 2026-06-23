@@ -7,9 +7,9 @@
 
 ## 2. Component layer (Radix-backed, cva)
 
-- [ ] 2.1 `Button` (gradient primary / outline / ghost, hover lift, focus ring), `Card`, `Badge` (pill section-label with pulsing accent dot)
-- [ ] 2.2 `ConnectPanel` → Radix `Dialog` styled to the system (auto-discover / manual IP / cancel)
-- [ ] 2.3 Tile selection → Radix `Checkbox`; date headers, grid, host chip restyled
+- [x] 2.1 `Button` (cva: gradient primary / outline / ghost, hover lift, focus ring), `Input`, `Card` in `components/ui/` (Badge/pill-label deferred)
+- [x] 2.2 `ConnectPanel` redesigned shadcn-style: Card + gradient icon header + labeled Input + full-width Connect / Auto-discover / Cancel (Card, not yet a modal Dialog) — verified light + dark
+- [x] 2.3 Tile selection → Radix `Checkbox` (rounded, accent fill + check, backdrop over thumbnails); host chip + buttons restyled (date headers still CSS)
 
 ## 3. Infinite scroll
 

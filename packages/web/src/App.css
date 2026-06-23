@@ -4,47 +4,6 @@
   min-height: 100%;
 }
 
-/* ---- Buttons (design-system base; Radix/cva components replace these later) ---- */
-button {
-  appearance: none;
-  border: 1px solid var(--border);
-  background: var(--card);
-  color: var(--foreground);
-  padding: 8px 14px;
-  border-radius: 0.625rem;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.18s ease;
-}
-
-button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
-}
-
-button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-button.primary {
-  border: none;
-  color: #fff;
-  background-image: linear-gradient(135deg, var(--accent), var(--accent-secondary));
-  box-shadow: var(--shadow-sm);
-}
-
-button.primary:hover:not(:disabled) {
-  box-shadow: var(--shadow-accent);
-  transform: translateY(-1px);
-  filter: brightness(1.05);
-}
-
-button.primary:active:not(:disabled) {
-  transform: translateY(0) scale(0.985);
-}
-
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -201,17 +160,6 @@ button.primary:active:not(:disabled) {
   pointer-events: none;
 }
 
-.tile .check {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  width: 18px;
-  height: 18px;
-  accent-color: var(--accent);
-  pointer-events: none;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
-}
-
 .tile figcaption {
   padding: 6px 8px;
   font-size: 12px;
@@ -260,70 +208,13 @@ button.primary:active:not(:disabled) {
   }
 }
 
-/* ---- Connect panel ---- */
-.connect-card {
-  width: min(420px, 92vw);
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 22px;
-  text-align: left;
-  box-shadow: var(--shadow-lg);
-}
-
-.connect-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 10px;
-  font-size: 17px;
-}
-
-.connect-error {
-  margin: 10px 0;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: color-mix(in srgb, #ef4444 12%, transparent);
-  border: 1px solid color-mix(in srgb, #ef4444 35%, transparent);
-  color: #ef4444;
-  font-size: 13px;
-}
-
-.connect-row {
-  display: flex;
-  gap: 8px;
-  margin: 14px 0 10px;
-}
-
-.ip-input {
-  flex: 1;
-  min-width: 0;
-  padding: 9px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--background);
-  color: var(--foreground);
-  font: inherit;
-  font-size: 14px;
-}
-
-.ip-input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
-}
-
-.connect-actions {
-  display: flex;
-  gap: 8px;
-}
-
 /* ---- Host chip (toolbar) ---- */
 .host-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 5px 10px;
+  font: inherit;
   font-size: 12px;
   font-weight: 500;
   border-radius: 999px;
@@ -331,6 +222,12 @@ button.primary:active:not(:disabled) {
   border: 1px solid var(--border);
   color: var(--foreground);
   cursor: pointer;
+  appearance: none;
+  transition: border-color 0.18s ease;
+}
+
+.host-chip:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
 }
 
 .host-chip .host-dot {

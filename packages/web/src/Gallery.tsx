@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { Photo } from './api'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 
 interface Group {
   key: string
@@ -114,15 +116,15 @@ export default function Gallery({
         <span className="muted count">
           {photos.length} photos{count > 0 ? ` · ${count} selected` : ''}
         </span>
-        <button onClick={selectAll} disabled={photos.length === 0}>
+        <Button variant="ghost" size="sm" onClick={selectAll} disabled={photos.length === 0}>
           Select all
-        </button>
-        <button onClick={clearSelection} disabled={count === 0}>
+        </Button>
+        <Button variant="ghost" size="sm" onClick={clearSelection} disabled={count === 0}>
           Clear
-        </button>
-        <button className="primary" onClick={downloadSelected} disabled={count === 0}>
+        </Button>
+        <Button variant="primary" size="sm" onClick={downloadSelected} disabled={count === 0}>
           Download{count > 0 ? ` (${count})` : ''}
-        </button>
+        </Button>
       </header>
 
       {photos.length === 0 && <div className="centered">No photos found on the camera.</div>}
@@ -173,7 +175,11 @@ function Tile({
         draggable={false}
         onLoad={(e) => e.currentTarget.classList.add('loaded')}
       />
-      <input type="checkbox" className="check" checked={selected} readOnly tabIndex={-1} />
+      <Checkbox
+        checked={selected}
+        tabIndex={-1}
+        className="pointer-events-none absolute left-2 top-2"
+      />
       <figcaption title={photo.name}>{photo.name}</figcaption>
     </figure>
   )
