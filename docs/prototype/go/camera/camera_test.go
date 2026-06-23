@@ -156,3 +156,20 @@ func TestSSDPLocation(t *testing.T) {
 		t.Errorf("ssdpLocation without LOCATION = %q, want empty", got)
 	}
 }
+
+func TestIsSonyServer(t *testing.T) {
+	tests := []struct {
+		server string
+		want   bool
+	}{
+		{"UPnP/1.0 SonyImagingDevice/1.0", true},
+		{"Linux/3.x UPnP/1.0 Emby/4.8", false},
+		{"Jellyfin", false},
+		{"", false},
+	}
+	for _, tc := range tests {
+		if got := isSonyServer(tc.server); got != tc.want {
+			t.Errorf("isSonyServer(%q) = %v, want %v", tc.server, got, tc.want)
+		}
+	}
+}

@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = ["packages/camera", "packages/server", "packages/cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+# Small, fully-static binaries that cross-compile cleanly (incl. i686-musl/iSH).
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+panic = "abort"
+codegen-units = 1

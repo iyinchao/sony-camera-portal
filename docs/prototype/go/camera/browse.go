@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -190,33 +192,66 @@ func (c *Client) browseContainer(ctx context.Context, objectID string) (items []
 	}
 }
 
-// List enumerates every photo on the camera by recursively browsing containers
-// from the root, discovering the device on first use.
+// browseConcurrency bounds simultaneous Browse requests. Sony's DLNA server is
+// slow per call, so crawling containers concurrently turns a many-second
+// sequential walk into a few seconds without overwhelming the camera.
+const browseConcurrency = 6
+
+// List enumerates every photo on the camera by crawling containers from the
+// root concurrently, discovering the device on first use. Photos are returned
+// sorted by filename for a stable order.
 func (c *Client) List(ctx context.Context) ([]Photo, error) {
 	if err := c.ensureService(ctx); err != nil {
 		return nil, err
 	}
-	var photos []Photo
-	seen := map[string]bool{}
-	queue := []string{"0"}
-	for len(queue) > 0 {
-		id := queue[0]
-		queue = queue[1:]
-		if seen[id] {
-			continue
+
+	var (
+		mu       sync.Mutex
+		photos   []Photo
+		seen     = map[string]bool{"0": true}
+		wg       sync.WaitGroup
+		sem      = make(chan struct{}, browseConcurrency)
+		errOnce  sync.Once
+		firstErr error
+	)
+
+	var crawl func(id string)
+	crawl = func(id string) {
+		defer wg.Done()
+		if ctx.Err() != nil {
+			return
 		}
-		seen[id] = true
-		items, containers, err := c.browseContainer(ctx, id)
+		sem <- struct{}{}
+		items, children, err := c.browseContainer(ctx, id)
+		<-sem
 		if err != nil {
-			return nil, err
+			errOnce.Do(func() { firstErr = err })
+			return
 		}
+		mu.Lock()
 		photos = append(photos, items...)
-		for _, child := range containers {
+		var next []string
+		for _, child := range children {
 			if !seen[child] {
-				queue = append(queue, child)
+				seen[child] = true
+				next = append(next, child)
 			}
 		}
+		mu.Unlock()
+		for _, child := range next {
+			wg.Add(1)
+			go crawl(child)
+		}
 	}
+
+	wg.Add(1)
+	go crawl("0")
+	wg.Wait()
+
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	sort.Slice(photos, func(i, j int) bool { return photos[i].Name < photos[j].Name })
 	return photos, nil
 }
 

@@ -1,37 +1,52 @@
 schema: spec-driven
 
 context: |
-  Product: sony-camera-portal — a single self-contained Go binary that runs a local
+  Product: sony-camera-portal — a single self-contained binary that runs a local
   web gallery for browsing, selecting, and downloading JPEG photos from a Sony
   a6000 (PlayMemories / Imaging Edge generation) over the camera's own Wi-Fi
   access point. No Sony app, no cloud, fully offline.
 
-  Architecture: Browser → http://127.0.0.1:PORT (same-origin, no CORS) → Go
-  server → camera at http://192.168.122.1 (server-side fetch, so CORS /
-  mixed-content limits don't apply). The web UI is embedded via go:embed.
+  Architecture: Browser → http://127.0.0.1:PORT (same-origin, no CORS) → local
+  server → camera (server-side fetch, so CORS / mixed-content limits don't
+  apply). The web UI is embedded into the binary.
 
-  Tech stack: Go, standard library first (net/http, encoding/xml for UPnP SOAP).
-  Build static binaries with CGO_ENABLED=0. gofmt + go vet must be clean.
-  Table-driven tests in _test.go. Module path: github.com/iyinchao/sony-camera-portal.
+  Tech stack (CANONICAL = Rust, decided 2026-06-23 after validating Rust runs on
+  iSH/iOS where Go's netpoller is risky): Rust, blocking I/O (no async runtime —
+  best fit for iSH's emulated env). A hand-rolled minimal HTTP client over
+  TcpStream with NO socket options (iSH rejects setsockopt timeouts with EINVAL).
+  tiny_http server, roxmltree for UPnP SOAP, rust-embed for the web bundle.
+  Cross-compile to fully-static targets incl. i686-unknown-linux-musl for iSH.
+  The Go implementation is retired to docs/prototype/go (reference only).
+
+  Frontend: React + Vite + TypeScript, built to web bundle and embedded via
+  rust-embed. The npm build is BUILD-TIME only; the bundle ships locally (no CDN,
+  no runtime internet), preserving offline use.
+
+  Repo layout (Cargo workspace): packages/camera (lib), packages/server (lib),
+  packages/cli (bin, embeds the web bundle), packages/web (React frontend).
+  Root holds Cargo.toml, scripts/, openspec/, docs/ (incl. docs/prototype/).
 
   Targets: macOS (arm64/amd64), Windows (amd64/arm64), Linux (amd64/arm64),
-  Android via Termux (android/arm64). Distribution via GoReleaser + GitHub
-  Releases + Homebrew tap + install.sh / install.ps1.
+  Android via Termux (android/arm64), iOS via iSH (i686-unknown-linux-musl).
 
-  Camera protocol (Sony PlayMemories): camera becomes a Wi-Fi AP at fixed
-  192.168.122.1; GET /DmsDescPush.xml to find the ContentDirectory control URL;
-  enumerate photos via a UPnP ContentDirectory Browse SOAP action (ObjectID=0,
-  BrowseDirectChildren); each item exposes <res> URLs for thumbnail / reduced /
-  original; download via plain HTTP GET.
+  Camera protocol (Sony PlayMemories): camera becomes a Wi-Fi AP. The exact IP
+  varies by firmware (this body is 10.0.0.1, not the SPEC's documented
+  192.168.122.1). GET http://<host>:64321/DmsDesc.xml to find the
+  ContentDirectory control URL; enumerate photos via a UPnP ContentDirectory
+  Browse SOAP action (ObjectID=0, BrowseDirectChildren), recursing containers;
+  each item exposes <res> URLs distinguished by DLNA.ORG_PN (JPEG_TN thumbnail,
+  PN-less original); download via plain HTTP GET on a separate media port.
+
+  Discovery: SSDP multicast works on desktop but is BLOCKED on iOS/iSH (no
+  multicast entitlement) — fall back to deriving candidate gateways from the
+  local IP (getsockname) and probing them; the camera is the AP gateway.
 
   Hard constraints (do not regress):
   - This path serves JPEG only; the camera downscales RAW (.ARW). Never promise RAW.
-  - In AP mode the camera is fixed at 192.168.122.1; keep configurable, default to it.
+  - Camera host must be runtime-configurable (the user can connect / change IP /
+    reconnect from the web UI); the server starts WITHOUT requiring a camera.
   - Stay offline-capable: no CDN, no internet dependency at runtime.
   - The HTTP server binds 127.0.0.1 only (never 0.0.0.0). No telemetry.
-
-  Layout: main.go (CLI), server/ (HTTP + /api proxy), camera/ (UPnP client),
-  web/ (embedded frontend).
 
 rules:
   proposal:

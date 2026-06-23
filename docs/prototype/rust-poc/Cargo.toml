@@ -7,11 +7,11 @@ description = "Rust PoC: Sony camera DLNA gallery, targets iSH (i686-musl static
 [dependencies]
 # Blocking, no async runtime — best fit for iSH's emulated single-threaded env.
 tiny_http = "0.12"
-# HTTP client with default-features off: http-only, NO TLS (no rustls/ring),
-# keeps the build pure-Rust so i686-musl cross-compiles cleanly.
-ureq = { version = "2.10", default-features = false }
 roxmltree = "0.20"
 serde_json = "1"
+# NOTE: no HTTP client crate. ureq sets socket timeouts (setsockopt) which iSH
+# rejects with EINVAL, so we hand-roll a minimal blocking client over TcpStream
+# with no socket options — the same thing busybox wget does and iSH supports.
 
 [profile.release]
 opt-level = "z"

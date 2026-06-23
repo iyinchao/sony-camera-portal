@@ -122,29 +122,50 @@ func Discover(ctx context.Context, timeout time.Duration) (descURL string, err e
 		}
 	}
 
+	// Prefer a Sony camera. Other DLNA MediaServers on the LAN (Emby/Jellyfin/
+	// NAS/TVs) also answer, so taking the first responder would grab the wrong
+	// device; only fall back to a non-Sony server to report a clear error.
 	buf := make([]byte, 65535)
+	var otherServer bool
 	for {
-		select {
-		case <-ctx.Done():
+		if ctx.Err() != nil {
 			return "", ctx.Err()
-		default:
 		}
 		n, _, err := conn.ReadFromUDP(buf)
 		if err != nil {
-			return "", fmt.Errorf("no camera found via SSDP: %w", err)
+			break // read deadline reached
 		}
-		if loc := ssdpLocation(string(buf[:n])); loc != "" {
+		resp := string(buf[:n])
+		loc := ssdpHeader(resp, "location")
+		if loc == "" {
+			continue
+		}
+		if isSonyServer(ssdpHeader(resp, "server")) {
 			return loc, nil
 		}
+		otherServer = true
 	}
+	if otherServer {
+		return "", fmt.Errorf("%w: found a DLNA server but not a Sony camera (e.g. an Emby/Jellyfin/NAS server); join the camera's Wi-Fi or pass --camera-host", ErrNotConnected)
+	}
+	return "", fmt.Errorf("%w: no camera found via SSDP; join the camera's Wi-Fi or pass --camera-host", ErrNotConnected)
 }
 
-// ssdpLocation returns the LOCATION header value from an SSDP response, or "".
-func ssdpLocation(resp string) string {
+// isSonyServer reports whether an SSDP SERVER header looks like a Sony imaging
+// device (e.g. "UPnP/1.0 SonyImagingDevice/1.0").
+func isSonyServer(server string) bool {
+	return strings.Contains(strings.ToLower(server), "sony")
+}
+
+// ssdpHeader returns the named header value from an SSDP response, or "".
+func ssdpHeader(resp, name string) string {
 	for _, line := range strings.Split(resp, "\r\n") {
-		if k, v, ok := strings.Cut(line, ":"); ok && strings.EqualFold(strings.TrimSpace(k), "location") {
+		if k, v, ok := strings.Cut(line, ":"); ok && strings.EqualFold(strings.TrimSpace(k), name) {
 			return strings.TrimSpace(v)
 		}
 	}
 	return ""
 }
+
+// ssdpLocation returns the LOCATION header value from an SSDP response, or "".
+func ssdpLocation(resp string) string { return ssdpHeader(resp, "location") }
