@@ -5,7 +5,7 @@ The React app uses a temporary adapter and a hand-written **dark** theme. This
 change does the real frontend: adopt the `.dev/prompt.md` "Minimalist Modern"
 **light** design system on Tailwind + Radix, add infinite scroll, and add a
 click-to-preview lightbox. Hard constraint unchanged: **runtime is offline** (no
-CDN) — so fonts are self-hosted.
+CDN) — so we avoid web fonts (system stack) and bundle every dep locally.
 
 ## Goals / Non-Goals
 
@@ -14,7 +14,7 @@ CDN) — so fonts are self-hosted.
   as CSS variables + Tailwind theme; build reusable Button/Card/Dialog/Checkbox.
 - Light theme, Electric Blue accent gradient, system sans-serif typography.
 - Infinite scroll; click-to-preview lightbox; preserve select/download/connect.
-- Offline preserved (self-hosted fonts, locally-bundled deps).
+- Offline preserved (system fonts, locally-bundled deps).
 - Accessible (WCAG AA contrast, focus rings, 44px touch targets, reduced-motion).
 
 **Non-Goals:**
