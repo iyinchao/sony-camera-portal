@@ -15,8 +15,7 @@ the grouping browse's container elements, so `childCount`/titles are unconfirmed
 - First page returns after only a few Browse calls (fast first paint).
 - Efficient sequential pagination (infinite scroll) without re-walking.
 - Works whether or not the camera exposes `childCount`.
-- Preserve date-grouping, multi-select, download once loaded.
-- Tailwind + Radix component layer; offline bundling preserved.
+- Keep the existing UI working (minimal client adapter); the UI rework is separate.
 
 **Non-Goals:**
 - Random-access deep paging optimization (jumping to offset 10k) — sequential
@@ -53,13 +52,9 @@ the grouping browse's container elements, so `childCount`/titles are unconfirmed
   tree). Behind the existing `AppState` mutex.
 - **Mock paginates too.** `MockSource` slices its synthetic vector by
   offset/limit and reports a real total (it knows N).
-- **Frontend infinite scroll.** Keep a flat `photos` array + `offset`/`hasMore`;
-  an IntersectionObserver sentinel near the bottom fetches the next page and
-  appends; re-group by `dc:date` over the loaded set. Header shows "N loaded"
-  (+ total when known).
-- **Tailwind v4 + Radix.** `@tailwindcss/vite` plugin (no PostCSS config); Radix
-  primitives (`Dialog`, `Checkbox`, etc.) styled with Tailwind + a `cn()` helper
-  (`clsx` + `tailwind-merge`). Vite bundles everything — no runtime CDN.
+- **Frontend is out of scope here.** `api.ts` gets a minimal adapter so the
+  current UI keeps working; the infinite-scroll UI + Tailwind/Radix restyle are
+  the separate `gallery-ui-rework` change.
 
 ## Risks / Trade-offs
 

@@ -16,19 +16,12 @@
 - [x] 3.1 `cargo fmt`/`clippy`/`test` clean; `--mock 25` smoke: `?offset=0&limit=6`→6/total25/hasMore, `?offset=24`→1/hasMore=false
 - [ ] 3.2 Confirm first-page latency bounded on a real camera (spine + first leaf only) — by design; observe browse count on-device
 
-## 4. frontend — Tailwind + Radix setup
+## 4. docs + verify (backend)
 
-- [ ] 4.1 Add Tailwind v4 (`@tailwindcss/vite`) + theme (dark) + `cn()` helper (clsx + tailwind-merge); `@radix-ui/react-*` for the components used
-- [ ] 4.2 Configure `@/` path alias (tsconfig + vite); `npm run build` clean
+- [x] 4.1 `api.ts` minimal adapter (`fetchPage` + `fetchPhotos` reads `.photos`) so the existing UI keeps working against the paginated API
+- [x] 4.2 Updated CLAUDE.md + SPEC.md for the paginated `/api/list` shape (`{photos,total,hasMore}` + `offset`/`limit`)
+- [x] 4.3 `cargo fmt/clippy/test` clean; cross-build i686-musl green (847 KB)
 
-## 5. frontend — infinite scroll + restyle
+<!-- Frontend rework (Tailwind + Radix + infinite scroll) is split into its own
+     change: `gallery-ui-rework`. -->
 
-- [ ] 5.1 `api.ts`: `fetchPage(offset, limit)` → `{ photos, total, hasMore }`
-- [ ] 5.2 App/Gallery: flat `photos` + `offset`/`hasMore`; IntersectionObserver sentinel fetches next page and appends; header shows loaded count (+ total when known)
-- [ ] 5.3 Restyle ConnectPanel (Radix Dialog), toolbar (host chip/buttons), tiles/checkbox with Tailwind + Radix; keep date-grouping + multi-select + download
-- [ ] 5.4 `npm run build` clean; mock run verified in-browser (scroll loads more; select/download intact) — screenshot
-
-## 6. docs + verify
-
-- [ ] 6.1 Update README / docs / CLAUDE for the paginated `/api/list` shape + Tailwind/Radix
-- [ ] 6.2 `cargo fmt/clippy/test` + cross-build i686-musl still green

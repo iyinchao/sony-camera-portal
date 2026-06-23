@@ -40,7 +40,7 @@ and opens the printed localhost URL.
 ## API routes
 - `GET  /api/state`     → `{ connected, host, error, photoCount }`
 - `POST /api/connect`   → body `{ host? }`; sets/auto-discovers + validates the camera
-- `GET  /api/list`      → JSON `[{ id, name, date, thumbUrl, fullUrl }]` (503 if not connected)
+- `GET  /api/list?offset&limit` → `{ photos: [{ id, name, date, thumbUrl, fullUrl }], total, hasMore }` (paged; 503 if not connected)
 - `GET  /api/thumb/:id` → proxied thumbnail bytes
 - `GET  /api/photo/:id` → proxied original JPEG (Content-Disposition: attachment)
 

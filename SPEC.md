@@ -76,7 +76,7 @@ Limitations:
 ```
 GET  /api/state       -> { connected, host, error, photoCount }
 POST /api/connect     -> body { host? }   # set/auto-discover + validate the camera
-GET  /api/list        -> [{ id, name, date, thumbUrl, fullUrl }]  (503 if not connected)
+GET  /api/list?offset&limit -> { photos: [{ id, name, date, thumbUrl, fullUrl }], total, hasMore }  (503 if not connected)
 GET  /api/thumb/:id   -> image bytes (proxied)
 GET  /api/photo/:id   -> original JPEG (proxied, content-disposition: attachment)
 ```
