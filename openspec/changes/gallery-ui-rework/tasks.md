@@ -1,9 +1,9 @@
 ## 1. Design system foundation (Tailwind + tokens + fonts)
 
-- [ ] 1.1 Add Tailwind v4 (`@tailwindcss/vite`), `clsx` + `tailwind-merge` (`cn()`), `cva`; `@/` path alias (tsconfig + vite); `npm run build` clean
-- [ ] 1.2 Centralize `.dev/prompt.md` tokens as CSS variables + Tailwind theme (light bg `#FAFAFA`, slate text, Electric Blue accent gradient, border/card, shadow scale incl. `shadow-accent`, radii)
-- [ ] 1.2b Dark token set under `@media (prefers-color-scheme: dark)` (dark slate canvas, elevated cards, light text, same accent) + `color-scheme`; UI follows the OS theme automatically
-- [ ] 1.3 Typography = system sans-serif stack (`system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`); no web fonts; hierarchy via weight/size/tracking
+- [x] 1.1 Tailwind v4 (`@tailwindcss/vite`) + `clsx`/`tailwind-merge` (`cn()` in `lib/utils.ts`); `@/` path alias (tsconfig + vite + @types/node); `npm run build` clean (cva added with components in Phase 2)
+- [x] 1.2 Tokens in `index.css` as CSS variables + Tailwind `@theme` (light `#FAFAFA`/slate, Electric Blue accent + gradient utility, border/card, shadow scale incl. `shadow-accent`, radius)
+- [x] 1.2b Dark set under `@media (prefers-color-scheme: dark)` + `color-scheme`; verified both themes follow the OS automatically (screenshots)
+- [x] 1.3 Typography = system sans-serif stack (no web fonts); existing components retargeted to the new tokens so light/dark works now
 
 ## 2. Component layer (Radix-backed, cva)
 
