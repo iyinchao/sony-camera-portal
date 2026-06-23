@@ -386,27 +386,30 @@ function Tile({
 }) {
   return (
     <figure className={selected ? 'tile selected' : 'tile'}>
-      <PhotoView src={photo.fullUrl}>
-        <img
-          src={photo.thumbUrl}
-          alt={photo.name}
-          loading="lazy"
-          decoding="async"
-          draggable={false}
-          className="cursor-zoom-in"
-          onLoad={(e) => e.currentTarget.classList.add('loaded')}
+      <div className="thumb">
+        <PhotoView src={photo.fullUrl}>
+          <img
+            src={photo.thumbUrl}
+            alt={photo.name}
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+            onLoad={(e) => e.currentTarget.classList.add('loaded')}
+          />
+        </PhotoView>
+        <Checkbox
+          checked={selected}
+          onCheckedChange={() => {}}
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggle(e.shiftKey)
+          }}
+          className="check"
         />
-      </PhotoView>
-      <Checkbox
-        checked={selected}
-        onCheckedChange={() => {}}
-        onClick={(e) => {
-          e.stopPropagation()
-          onToggle(e.shiftKey)
-        }}
-        className="absolute left-2 top-2 cursor-pointer"
-      />
-      <figcaption title={photo.name}>{photo.name}</figcaption>
+      </div>
+      <figcaption title={photo.name} onClick={(e) => onToggle(e.shiftKey)}>
+        {photo.name}
+      </figcaption>
     </figure>
   )
 }
