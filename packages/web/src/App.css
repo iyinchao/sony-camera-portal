@@ -1,7 +1,8 @@
 .app {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  height: 100vh;
+  overflow: hidden; /* only the scroller scrolls; the toolbar stays put */
 }
 
 :focus-visible {
@@ -11,17 +12,39 @@
 
 /* ---- Toolbar ---- */
 .toolbar {
-  position: sticky;
-  top: 0;
+  flex: 0 0 auto;
   z-index: 20;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   padding: 10px 16px;
-  background: color-mix(in srgb, var(--background) 80%, transparent);
-  backdrop-filter: blur(8px);
+  background: var(--background);
   border-bottom: 1px solid var(--border);
+}
+
+/* ---- Virtualized scroller ---- */
+.scroller {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  position: relative;
+}
+
+.v-list {
+  position: relative;
+  width: 100%;
+}
+
+.v-row {
+  left: 0;
+  width: 100%;
+}
+
+.tiles-row {
+  display: grid;
+  gap: 4px;
+  padding: 4px 12px;
 }
 
 .brand {
@@ -69,21 +92,13 @@
   color: var(--muted-foreground);
 }
 
-/* ---- Date groups ---- */
-.group {
-  content-visibility: auto; /* skip rendering whole off-screen day sections */
-}
-
+/* ---- Date groups (the virtualizer pins the active header; see .v-row sticky) ---- */
 .date-h {
-  position: sticky;
-  top: 49px; /* sits just under the toolbar */
-  z-index: 10;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
-  background: color-mix(in srgb, var(--background) 80%, transparent);
-  backdrop-filter: blur(6px);
+  padding: 10px 16px;
+  background: var(--background);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -129,9 +144,6 @@
   margin: 0;
   padding: 6px 4px;
   user-select: none;
-  /* Browser skips layout/paint for off-screen tiles → smooth with many photos. */
-  content-visibility: auto;
-  contain-intrinsic-size: auto 170px;
 }
 
 /* Proportional image box: the photo is shown contained (not cropped), centered. */

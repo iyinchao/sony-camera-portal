@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { PhotoProvider, PhotoView } from 'react-photo-view'
+import { PhotoSlider } from 'react-photo-view'
 import 'react-photo-view/dist/react-photo-view.css'
+import { defaultRangeExtractor, useVirtualizer, type Range } from '@tanstack/react-virtual'
 import {
   ArrowDownWideNarrow,
   ArrowUpWideNarrow,
@@ -13,14 +14,22 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 
 const PAGE_LIMIT = 60
+const MIN_TILE = 136 // ~132px tile + gap → used to derive the column count
 
 type Order = 'newest' | 'oldest'
+
+type Cell = { photo: Photo; index: number } // index = flat index into `ordered`
 
 interface Group {
   key: string
   label: string
-  items: { photo: Photo; index: number }[] // index = global flat index (for shift-range)
+  items: Cell[]
 }
+
+// A virtualized row: a date header, or one grid line of up to `cols` tiles.
+type Row =
+  | { type: 'header'; key: string; label: string; items: Cell[] }
+  | { type: 'tiles'; key: string; cells: Cell[] }
 
 function formatDay(key: string): string {
   if (key === 'unknown') return 'Unknown date'
@@ -30,7 +39,7 @@ function formatDay(key: string): string {
 }
 
 function groupByDate(photos: Photo[]): Group[] {
-  const map = new Map<string, { photo: Photo; index: number }[]>()
+  const map = new Map<string, Cell[]>()
   const order: string[] = []
   photos.forEach((photo, index) => {
     const key = (photo.date || '').slice(0, 10) || 'unknown'
@@ -41,6 +50,30 @@ function groupByDate(photos: Photo[]): Group[] {
     map.get(key)!.push({ photo, index })
   })
   return order.map((key) => ({ key, label: formatDay(key), items: map.get(key)! }))
+}
+
+// Flatten the ordered photos into virtual rows. Grouped → header + tile rows per
+// day; flat → tile rows only. Each cell carries its flat index into `ordered`.
+function buildRows(ordered: Photo[], grouped: boolean, cols: number): Row[] {
+  const rows: Row[] = []
+  const pushTiles = (cells: Cell[], keyBase: string) => {
+    for (let i = 0; i < cells.length; i += cols) {
+      const line = cells.slice(i, i + cols)
+      rows.push({ type: 'tiles', key: `t:${keyBase}:${line[0].photo.id}`, cells: line })
+    }
+  }
+  if (grouped) {
+    for (const g of groupByDate(ordered)) {
+      rows.push({ type: 'header', key: `h:${g.key}`, label: g.label, items: g.items })
+      pushTiles(g.items, g.key)
+    }
+  } else {
+    pushTiles(
+      ordered.map((photo, index) => ({ photo, index })),
+      'all',
+    )
+  }
+  return rows
 }
 
 export default function Gallery({
@@ -60,20 +93,13 @@ export default function Gallery({
   const [order, setOrder] = useState<Order>('newest')
   const [grouped, setGrouped] = useState(true)
 
-  const loadedRef = useRef(0) // how many photos loaded so far
+  const loadedRef = useRef(0)
   const totalRef = useRef<number | null>(null)
-  const genRef = useRef(0) // load-session token; bumping it discards in-flight loads
+  const genRef = useRef(0)
   const loadingRef = useRef(false)
   const doneRef = useRef(false)
-  const sentinelRef = useRef<HTMLDivElement | null>(null)
 
-  // Fetch the next chunk in the current sort direction and append.
-  // 'oldest' pages forward from offset 0. 'newest' pages backward from the end
-  // (using the total) so the camera's newest photos appear first and the list
-  // doesn't reflow as more loads. If the total is unknown we fall back to a
-  // forward load and let the client-side `ordered` sort handle display.
-  // A generation token (genRef) discards results from a superseded session
-  // (order change / StrictMode double-mount); guards against concurrent calls.
+  // --- Paging core (data side; unchanged by virtualization) --------------------
   const loadMore = useCallback(async () => {
     if (loadingRef.current || doneRef.current) return
     const gen = genRef.current
@@ -82,7 +108,7 @@ export default function Gallery({
     setError(null)
     try {
       if (order === 'newest' && totalRef.current === null) {
-        const probe = await fetchPage(0, 1) // learn the total so we can page from the end
+        const probe = await fetchPage(0, 1)
         if (gen !== genRef.current) return
         if (probe.total !== null) {
           totalRef.current = probe.total
@@ -104,7 +130,7 @@ export default function Gallery({
         const start = Math.max(0, remaining - PAGE_LIMIT)
         const page = await fetchPage(start, remaining - start)
         if (gen !== genRef.current) return
-        chunk = page.photos.slice().reverse() // newest-first within the chunk
+        chunk = page.photos.slice().reverse()
         atEnd = start === 0 || page.photos.length === 0
       } else {
         const page = await fetchPage(loadedRef.current, PAGE_LIMIT)
@@ -134,8 +160,7 @@ export default function Gallery({
     }
   }, [order])
 
-  // Load the first chunk, and reset + reload from the right end when the sort
-  // direction changes. Bumping genRef invalidates any in-flight load.
+  // First load, and reset + reload from the right end when the order changes.
   useEffect(() => {
     genRef.current += 1
     loadingRef.current = false
@@ -149,22 +174,8 @@ export default function Gallery({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order])
 
-  // Load more as the bottom sentinel approaches (also auto-fills short pages).
-  useEffect(() => {
-    const el = sentinelRef.current
-    if (!el) return
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) loadMore()
-      },
-      { rootMargin: '800px' },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [loadMore])
-
-  // Display order: sort the loaded photos by date, newest or oldest first.
-  // (Sorting client-side keeps it correct regardless of the camera's own order.)
+  // Display order: sort the loaded photos by date (idempotent in the common case,
+  // but keeps display correct if the camera's own order ever differs).
   const ordered = useMemo(() => {
     const asc = [...photos].sort((a, b) => {
       const da = a.date || ''
@@ -174,12 +185,9 @@ export default function Gallery({
     return order === 'oldest' ? asc : asc.reverse()
   }, [photos, order])
 
-  const groups = useMemo(() => (grouped ? groupByDate(ordered) : []), [ordered, grouped])
-
-  // Changing order/grouping invalidates the shift-range anchor (indices moved).
+  // --- Selection (operates on `ordered`; unchanged) ----------------------------
   useEffect(() => setAnchor(null), [order, grouped])
 
-  // Plain click toggles one; shift-click selects the range from the last anchor.
   const toggle = useCallback(
     (index: number, shift: boolean) => {
       setSelected((prev) => {
@@ -204,12 +212,12 @@ export default function Gallery({
     [anchor, ordered],
   )
 
-  const toggleGroup = useCallback((g: Group) => {
+  const toggleGroup = useCallback((items: Cell[]) => {
     setSelected((prev) => {
       const next = new Set(prev)
-      const allSelected = g.items.every((it) => next.has(it.photo.id))
-      for (const it of g.items) {
-        if (allSelected) next.delete(it.photo.id)
+      const all = items.every((it) => next.has(it.photo.id))
+      for (const it of items) {
+        if (all) next.delete(it.photo.id)
         else next.add(it.photo.id)
       }
       return next
@@ -223,7 +231,7 @@ export default function Gallery({
   }, [])
 
   const downloadSelected = useCallback(() => {
-    const picked = photos.filter((p) => selected.has(p.id))
+    const picked = ordered.filter((p) => selected.has(p.id))
     picked.forEach((p, i) => {
       window.setTimeout(() => {
         const a = document.createElement('a')
@@ -234,7 +242,88 @@ export default function Gallery({
         a.remove()
       }, i * 300)
     })
-  }, [photos, selected])
+  }, [ordered, selected])
+
+  // --- Virtualized rows --------------------------------------------------------
+  const parentRef = useRef<HTMLDivElement | null>(null)
+  const [cols, setCols] = useState(2)
+
+  // Responsive column count from the scroll container width.
+  useEffect(() => {
+    const el = parentRef.current
+    if (!el) return
+    const compute = () => setCols(Math.max(1, Math.floor((el.clientWidth - 24) / MIN_TILE)))
+    compute()
+    const ro = new ResizeObserver(compute)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const rows = useMemo(() => buildRows(ordered, grouped, cols), [ordered, grouped, cols])
+
+  const stickyIndexes = useMemo(() => {
+    const arr: number[] = []
+    rows.forEach((r, i) => {
+      if (r.type === 'header') arr.push(i)
+    })
+    return arr
+  }, [rows])
+  const activeStickyRef = useRef(0)
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: (i) => (rows[i].type === 'header' ? 40 : 168),
+    overscan: 6,
+    getItemKey: (i) => rows[i].key,
+    rangeExtractor: useCallback(
+      (range: Range) => {
+        let active = 0
+        for (const i of stickyIndexes) {
+          if (i <= range.startIndex) active = i
+          else break
+        }
+        activeStickyRef.current = active
+        const set = new Set<number>([active, ...defaultRangeExtractor(range)])
+        return [...set].sort((a, b) => a - b)
+      },
+      [stickyIndexes],
+    ),
+  })
+
+  const virtualItems = virtualizer.getVirtualItems()
+
+  // Re-measure when the row model's shape changes; scroll to top on toggles.
+  useEffect(() => {
+    virtualizer.measure()
+  }, [grouped, order, cols, virtualizer])
+  useEffect(() => {
+    parentRef.current?.scrollTo({ top: 0 })
+  }, [grouped, order])
+
+  // Infinite load driven by the virtual range: fetch when the last rendered row
+  // nears the end of the rows (auto-fills short pages too).
+  useEffect(() => {
+    if (!rows.length) return
+    const last = virtualItems[virtualItems.length - 1]
+    if (last && last.index >= rows.length - 2) loadMore()
+  }, [virtualItems, rows.length, loadMore])
+
+  // --- Lightbox (controlled PhotoSlider over the full loaded list) -------------
+  const [viewerIndex, setViewerIndex] = useState(0)
+  const [viewerVisible, setViewerVisible] = useState(false)
+  const sliderImages = useMemo(
+    () => ordered.map((p) => ({ src: p.fullUrl, key: p.id })),
+    [ordered],
+  )
+  const openViewer = useCallback((index: number) => {
+    setViewerIndex(index)
+    setViewerVisible(true)
+  }, [])
+  // Swiping to the last loaded photo loads the next page so it never dead-ends.
+  useEffect(() => {
+    if (viewerVisible && viewerIndex >= ordered.length - 2) loadMore()
+  }, [viewerVisible, viewerIndex, ordered.length, loadMore])
 
   const count = selected.size
   const loaded = photos.length
@@ -288,77 +377,110 @@ export default function Gallery({
         </Button>
       </header>
 
-      {loaded === 0 && loading && <SkeletonGrid />}
-      {loaded === 0 && !loading && error && (
-        <div className="centered">
-          <p className="error-title">Couldn’t load photos</p>
-          <p className="muted">{error}</p>
-          <Button onClick={() => loadMore()}>Retry</Button>
-        </div>
-      )}
-      {loaded === 0 && !loading && !error && !hasMore && (
-        <div className="centered">No photos found on the camera.</div>
-      )}
-
-      <PhotoProvider>
-        {grouped ? (
-          groups.map((g) => {
-            const allSel = g.items.every((it) => selected.has(it.photo.id))
-            const someSel = !allSel && g.items.some((it) => selected.has(it.photo.id))
-            return (
-              <section key={g.key} className="group">
-                <div className="date-h" onClick={() => toggleGroup(g)} role="button" tabIndex={0}>
-                  <span className={'gcheck' + (allSel ? ' on' : someSel ? ' some' : '')} />
-                  <span className="date-label">{g.label}</span>
-                  <span className="muted">{g.items.length}</span>
-                </div>
-                <div className="grid">
-                  {g.items.map(({ photo, index }) => (
-                    <Tile
-                      key={photo.id}
-                      photo={photo}
-                      selected={selected.has(photo.id)}
-                      onToggle={(shift) => toggle(index, shift)}
-                    />
-                  ))}
-                </div>
-              </section>
-            )
-          })
-        ) : (
-          <div className="grid">
-            {ordered.map((photo, index) => (
-              <Tile
-                key={photo.id}
-                photo={photo}
-                selected={selected.has(photo.id)}
-                onToggle={(shift) => toggle(index, shift)}
-              />
-            ))}
+      <div className="scroller" ref={parentRef}>
+        {loaded === 0 && loading && <SkeletonGrid />}
+        {loaded === 0 && !loading && error && (
+          <div className="centered">
+            <p className="error-title">Couldn’t load photos</p>
+            <p className="muted">{error}</p>
+            <Button onClick={() => loadMore()}>Retry</Button>
           </div>
         )}
-      </PhotoProvider>
+        {loaded === 0 && !loading && !error && !hasMore && (
+          <div className="centered">No photos found on the camera.</div>
+        )}
 
-      {/* Infinite-scroll sentinel + status */}
-      <div ref={sentinelRef} aria-hidden className="h-px w-full" />
-      {loading && loaded > 0 && (
-        <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading more…
-        </div>
-      )}
-      {error && loaded > 0 && (
-        <div className="flex items-center justify-center gap-3 py-6 text-sm">
-          <span className="text-destructive">{error}</span>
-          <Button size="sm" onClick={() => loadMore()}>
-            Retry
-          </Button>
-        </div>
-      )}
-      {!hasMore && loaded > 0 && (
-        <div className="py-6 text-center text-xs text-muted-foreground">
-          All {loaded} photos loaded
-        </div>
-      )}
+        {loaded > 0 && (
+          <div className="v-list" style={{ height: virtualizer.getTotalSize() }}>
+            {virtualItems.map((vi) => {
+              const row = rows[vi.index]
+              if (!row) return null
+              const isHeader = row.type === 'header'
+              const sticky = isHeader && activeStickyRef.current === vi.index
+              return (
+                <div
+                  key={vi.key}
+                  ref={virtualizer.measureElement}
+                  data-index={vi.index}
+                  className="v-row"
+                  style={
+                    sticky
+                      ? { position: 'sticky', top: 0, zIndex: 12 }
+                      : { position: 'absolute', top: 0, transform: `translateY(${vi.start}px)` }
+                  }
+                >
+                  {row.type === 'header' ? (
+                    <HeaderRow row={row} selected={selected} onToggleGroup={toggleGroup} />
+                  ) : (
+                    <div
+                      className="tiles-row"
+                      style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+                    >
+                      {row.cells.map(({ photo, index }) => (
+                        <Tile
+                          key={photo.id}
+                          photo={photo}
+                          index={index}
+                          selected={selected.has(photo.id)}
+                          onToggle={toggle}
+                          onOpen={openViewer}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {loaded > 0 && loading && (
+          <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading more…
+          </div>
+        )}
+        {loaded > 0 && error && (
+          <div className="flex items-center justify-center gap-3 py-6 text-sm">
+            <span className="text-destructive">{error}</span>
+            <Button size="sm" onClick={() => loadMore()}>
+              Retry
+            </Button>
+          </div>
+        )}
+        {loaded > 0 && !hasMore && (
+          <div className="py-6 text-center text-xs text-muted-foreground">
+            All {loaded} photos loaded
+          </div>
+        )}
+      </div>
+
+      <PhotoSlider
+        images={sliderImages}
+        visible={viewerVisible}
+        onClose={() => setViewerVisible(false)}
+        index={viewerIndex}
+        onIndexChange={setViewerIndex}
+      />
+    </div>
+  )
+}
+
+function HeaderRow({
+  row,
+  selected,
+  onToggleGroup,
+}: {
+  row: { label: string; items: Cell[] }
+  selected: Set<string>
+  onToggleGroup: (items: Cell[]) => void
+}) {
+  const allSel = row.items.every((it) => selected.has(it.photo.id))
+  const someSel = !allSel && row.items.some((it) => selected.has(it.photo.id))
+  return (
+    <div className="date-h" onClick={() => onToggleGroup(row.items)} role="button" tabIndex={0}>
+      <span className={'gcheck' + (allSel ? ' on' : someSel ? ' some' : '')} />
+      <span className="date-label">{row.label}</span>
+      <span className="muted">{row.items.length}</span>
     </div>
   )
 }
@@ -373,41 +495,45 @@ function SkeletonGrid() {
   )
 }
 
-// A tile: click the image to preview (lightbox), click the checkbox to select.
-// The two actions are kept separate so they don't conflict.
+// A tile: click the image to preview (lightbox), click the checkbox or filename
+// to select. Selection shows as a highlighted filename (macOS Finder style).
 function Tile({
   photo,
+  index,
   selected,
   onToggle,
+  onOpen,
 }: {
   photo: Photo
+  index: number
   selected: boolean
-  onToggle: (shift: boolean) => void
+  onToggle: (index: number, shift: boolean) => void
+  onOpen: (index: number) => void
 }) {
   return (
     <figure className={selected ? 'tile selected' : 'tile'}>
       <div className="thumb">
-        <PhotoView src={photo.fullUrl}>
-          <img
-            src={photo.thumbUrl}
-            alt={photo.name}
-            loading="lazy"
-            decoding="async"
-            draggable={false}
-            onLoad={(e) => e.currentTarget.classList.add('loaded')}
-          />
-        </PhotoView>
+        <img
+          src={photo.thumbUrl}
+          alt={photo.name}
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          className="cursor-zoom-in"
+          onClick={() => onOpen(index)}
+          onLoad={(e) => e.currentTarget.classList.add('loaded')}
+        />
         <Checkbox
           checked={selected}
           onCheckedChange={() => {}}
           onClick={(e) => {
             e.stopPropagation()
-            onToggle(e.shiftKey)
+            onToggle(index, e.shiftKey)
           }}
           className="check"
         />
       </div>
-      <figcaption title={photo.name} onClick={(e) => onToggle(e.shiftKey)}>
+      <figcaption title={photo.name} onClick={(e) => onToggle(index, e.shiftKey)}>
         {photo.name}
       </figcaption>
     </figure>
