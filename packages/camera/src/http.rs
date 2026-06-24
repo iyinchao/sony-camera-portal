@@ -6,10 +6,31 @@
 //! parsing Content-Length or chunked encoding.
 
 use std::io::{Read, Write};
-use std::net::TcpStream;
+use std::net::{TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
 pub(crate) const UA: &str = "UPnP/1.0 DLNADOC/1.50 Sony";
+
+/// Bounded connect time. A real camera (the AP gateway) answers in milliseconds;
+/// this only bounds an unreachable/unresponsive host so discovery and connect
+/// fail fast instead of hanging. `connect_timeout` polls (no `setsockopt`
+/// timeouts), so it stays iSH-safe; the socket is blocking again afterwards.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
+
+/// Resolve `host:port` and connect with a bounded timeout.
+fn connect_bounded(host: &str, port: u16) -> Result<TcpStream, String> {
+    let addrs = (host, port)
+        .to_socket_addrs()
+        .map_err(|e| format!("resolve {host}:{port}: {e}"))?;
+    let mut last = format!("connect {host}:{port}: no addresses");
+    for addr in addrs {
+        match TcpStream::connect_timeout(&addr, CONNECT_TIMEOUT) {
+            Ok(s) => return Ok(s),
+            Err(e) => last = format!("connect {host}:{port}: {e}"),
+        }
+    }
+    Err(last)
+}
 
 /// Split `http://host:port/path` into its parts (default port 80, default path /).
 pub(crate) fn split_url(url: &str) -> Result<(String, u16, String), String> {
@@ -42,8 +63,7 @@ pub(crate) fn http_request(
     body: Option<&[u8]>,
 ) -> Result<(u16, Vec<u8>, String), String> {
     let (host, port, path) = split_url(url)?;
-    let mut stream = TcpStream::connect((host.as_str(), port))
-        .map_err(|e| format!("connect {host}:{port}: {e}"))?;
+    let mut stream = connect_bounded(&host, port)?;
 
     let mut req = format!("{method} {path} HTTP/1.0\r\nHost: {host}:{port}\r\n");
     for (k, v) in extra_headers {

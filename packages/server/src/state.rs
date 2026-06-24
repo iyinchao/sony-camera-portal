@@ -5,6 +5,7 @@ use crate::pager::Page;
 use crate::source::{MockSource, RealCamera, Source};
 use camera::{Camera, Photo};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
 struct Inner {
@@ -13,13 +14,16 @@ struct Inner {
     last_error: Option<String>,
 }
 
-/// Thread-safe app state. The server is single-threaded today, but the Mutex
-/// keeps this sound if that changes.
+/// Thread-safe app state, shared across the server's worker threads. `epoch`
+/// orders concurrent connect attempts: each bumps it on entry, and only commits
+/// its result if still current (so a stale attempt can't clobber a newer one).
 pub struct AppState {
     inner: Mutex<Inner>,
+    epoch: AtomicU64,
 }
 
 /// A snapshot of connection state for `/api/state` and `/api/connect`.
+#[derive(Debug)]
 pub struct StateInfo {
     pub connected: bool,
     pub host: Option<String>,
@@ -41,6 +45,7 @@ impl AppState {
                 photos: HashMap::new(),
                 last_error: None,
             }),
+            epoch: AtomicU64::new(0),
         }
     }
 
@@ -64,16 +69,39 @@ impl AppState {
     /// Connect to `host` (or auto-discover when None). Validate-then-swap: the
     /// new camera is validated (its description fetched/parsed) before it
     /// replaces the active source, so a bad request never drops a good
-    /// connection.
+    /// connection. The slow discovery runs WITHOUT holding the lock, so other
+    /// requests are served concurrently. An `epoch` makes a newer connect
+    /// supersede an older in-flight one: if a newer attempt started while this
+    /// one was working, this one's result is discarded instead of committed.
     pub fn connect(&self, host: Option<&str>) -> Result<StateInfo, String> {
+        let my_epoch = self.begin_connect();
         // A host (from the web UI) connects to that IP; otherwise auto-discover.
+        // (No lock held during this potentially-slow network work.)
         let result = match host {
             Some(h) => Camera::connect(h),
             None => Camera::discover(),
         };
+        self.commit_connect(my_epoch, result)
+    }
+
+    /// Claim a connect epoch. The newest claimant has the highest epoch.
+    fn begin_connect(&self) -> u64 {
+        self.epoch.fetch_add(1, Ordering::SeqCst) + 1
+    }
+
+    /// Commit a connect's result, but only if no newer connect has started since
+    /// `my_epoch` was claimed; otherwise discard it (touch nothing).
+    fn commit_connect(
+        &self,
+        my_epoch: u64,
+        result: Result<Camera, String>,
+    ) -> Result<StateInfo, String> {
+        let mut inner = self.inner.lock().unwrap();
+        if self.epoch.load(Ordering::SeqCst) != my_epoch {
+            return Err("superseded by a newer connect".into());
+        }
         match result {
             Ok(cam) => {
-                let mut inner = self.inner.lock().unwrap();
                 inner.source = Some(Box::new(RealCamera::new(cam)));
                 inner.photos.clear();
                 inner.last_error = None;
@@ -81,7 +109,8 @@ impl AppState {
                 Ok(self.info())
             }
             Err(e) => {
-                self.inner.lock().unwrap().last_error = Some(e.clone());
+                inner.last_error = Some(e.clone());
+                drop(inner);
                 Err(e)
             }
         }
@@ -115,5 +144,42 @@ impl AppState {
         let inner = self.inner.lock().unwrap();
         let src = inner.source.as_ref().ok_or("not connected")?;
         src.fetch_full(photo)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The Err path exercises the epoch gate without needing a live Camera; the
+    // Ok path (committing a source) goes through the same gate.
+
+    #[test]
+    fn fresh_connect_records_its_error() {
+        let state = AppState::new();
+        let e = state.begin_connect();
+        let r = state.commit_connect(e, Err::<Camera, String>("boom".into()));
+        assert_eq!(r.unwrap_err(), "boom");
+        assert_eq!(state.info().error.as_deref(), Some("boom"));
+    }
+
+    #[test]
+    fn superseded_connect_is_discarded() {
+        let state = AppState::new();
+        let e1 = state.begin_connect();
+        let _e2 = state.begin_connect(); // a newer attempt started
+
+        // The older attempt (e1) finishes last → superseded → touches nothing.
+        let r = state.commit_connect(e1, Err::<Camera, String>("stale".into()));
+        assert_eq!(r.unwrap_err(), "superseded by a newer connect");
+        assert!(
+            state.info().error.is_none(),
+            "stale error must not be recorded"
+        );
+
+        // The newer attempt commits normally.
+        let r2 = state.commit_connect(_e2, Err::<Camera, String>("fresh".into()));
+        assert_eq!(r2.unwrap_err(), "fresh");
+        assert_eq!(state.info().error.as_deref(), Some("fresh"));
     }
 }

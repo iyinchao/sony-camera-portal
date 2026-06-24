@@ -9,6 +9,8 @@ mod pager;
 mod source;
 mod state;
 
+use std::sync::Arc;
+
 pub use state::{AppState, StateInfo};
 
 /// Supplies the embedded web bundle (implemented by the cli crate via rust-embed).
@@ -24,7 +26,12 @@ pub struct Response {
     pub content_type: String,
     pub body: Vec<u8>,
     pub content_disposition: Option<String>,
+    pub cache_control: Option<String>,
 }
+
+/// Proxied media is content-addressed by camera object id, so it's immutable —
+/// let the browser cache it (a re-mounted virtualized tile won't re-hit the camera).
+const MEDIA_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
 
 impl Response {
     fn new(status: u16, content_type: &str, body: Vec<u8>) -> Self {
@@ -33,6 +40,7 @@ impl Response {
             content_type: content_type.to_string(),
             body,
             content_disposition: None,
+            cache_control: None,
         }
     }
     fn json(status: u16, v: serde_json::Value) -> Self {
@@ -102,6 +110,7 @@ fn proxy(state: &AppState, id: &str, full: bool) -> Response {
     match fetched {
         Ok((bytes, content_type)) => {
             let mut r = Response::new(200, &content_type, bytes);
+            r.cache_control = Some(MEDIA_CACHE_CONTROL.to_string());
             if full {
                 r.content_disposition = Some(format!("attachment; filename=\"{}\"", photo.name));
             }
@@ -178,33 +187,61 @@ fn page_json(page: &pager::Page) -> serde_json::Value {
     })
 }
 
-/// Bind `addr` (caller passes a loopback address) and serve requests until the
-/// process ends.
+/// Number of worker threads. Fixed and small so a stuck request (e.g. a slow
+/// connect or an unresponsive read) never freezes the others, while staying
+/// predictable under iSH's emulation (no unbounded thread-per-request spawn).
+const WORKERS: usize = 4;
+
+/// Bind `addr` (caller passes a loopback address) and serve requests
+/// concurrently until the process ends. Requests are handled by a fixed worker
+/// pool, so a slow `/api/connect` doesn't block `/api/state`, media, or assets.
 pub fn serve(addr: &str, state: AppState, assets: Box<dyn AssetSource>) -> Result<(), String> {
-    let server = tiny_http::Server::http(addr).map_err(|e| e.to_string())?;
-    for mut request in server.incoming_requests() {
-        let method = match request.method() {
-            tiny_http::Method::Get => "GET",
-            tiny_http::Method::Post => "POST",
-            _ => "OTHER",
-        };
-        let url = request.url().to_string();
-        let mut body = Vec::new();
-        if method == "POST" {
-            let _ = request.as_reader().read_to_end(&mut body);
-        }
+    let server = Arc::new(tiny_http::Server::http(addr).map_err(|e| e.to_string())?);
+    let state = Arc::new(state);
+    let assets: Arc<dyn AssetSource> = Arc::from(assets);
 
-        let resp = handle(&state, assets.as_ref(), method, &url, &body);
-
-        let mut http = tiny_http::Response::from_data(resp.body)
-            .with_status_code(resp.status)
-            .with_header(header("Content-Type", &resp.content_type));
-        if let Some(cd) = resp.content_disposition {
-            http = http.with_header(header("Content-Disposition", &cd));
-        }
-        let _ = request.respond(http);
+    let mut workers = Vec::with_capacity(WORKERS);
+    for _ in 0..WORKERS {
+        let server = Arc::clone(&server);
+        let state = Arc::clone(&state);
+        let assets = Arc::clone(&assets);
+        workers.push(std::thread::spawn(move || {
+            while let Ok(request) = server.recv() {
+                serve_one(request, &state, assets.as_ref());
+            }
+        }));
+    }
+    for w in workers {
+        let _ = w.join();
     }
     Ok(())
+}
+
+/// Read one request, route it, and write the response.
+fn serve_one(mut request: tiny_http::Request, state: &AppState, assets: &dyn AssetSource) {
+    let method = match request.method() {
+        tiny_http::Method::Get => "GET",
+        tiny_http::Method::Post => "POST",
+        _ => "OTHER",
+    };
+    let url = request.url().to_string();
+    let mut body = Vec::new();
+    if method == "POST" {
+        let _ = request.as_reader().read_to_end(&mut body);
+    }
+
+    let resp = handle(state, assets, method, &url, &body);
+
+    let mut http = tiny_http::Response::from_data(resp.body)
+        .with_status_code(resp.status)
+        .with_header(header("Content-Type", &resp.content_type));
+    if let Some(cd) = resp.content_disposition {
+        http = http.with_header(header("Content-Disposition", &cd));
+    }
+    if let Some(cc) = resp.cache_control {
+        http = http.with_header(header("Cache-Control", &cc));
+    }
+    let _ = request.respond(http);
 }
 
 fn header(field: &str, value: &str) -> tiny_http::Header {
@@ -302,6 +339,30 @@ mod tests {
             .as_deref()
             .unwrap_or("")
             .contains("attachment"));
+    }
+
+    #[test]
+    fn media_is_cacheable_but_listing_is_not() {
+        let state = AppState::with_mock(1);
+        let list: serde_json::Value =
+            serde_json::from_slice(&req(&state, "GET", "/api/list").body).unwrap();
+        let id = list["photos"][0]["id"].as_str().unwrap().to_string();
+
+        let thumb = req(&state, "GET", &format!("/api/thumb/{id}"));
+        assert!(thumb
+            .cache_control
+            .as_deref()
+            .unwrap_or("")
+            .contains("immutable"));
+        let photo = req(&state, "GET", &format!("/api/photo/{id}"));
+        assert!(photo
+            .cache_control
+            .as_deref()
+            .unwrap_or("")
+            .contains("immutable"));
+
+        // The listing must NOT be cached (it changes as pages/cameras change).
+        assert!(req(&state, "GET", "/api/list").cache_control.is_none());
     }
 
     #[test]
