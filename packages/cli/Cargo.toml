@@ -9,7 +9,15 @@ description = "Local web gallery for a Sony camera over its Wi-Fi access point"
 name = "sony-camera-portal"
 path = "src/main.rs"
 
+[features]
+# `mock` enables the server's mock sources and the `--mock` flags. On by default
+# for dev; build the release binary with --no-default-features to strip it.
+default = ["mock"]
+mock = ["server/mock"]
+
 [dependencies]
 camera = { path = "../camera" }
-server = { path = "../server" }
+# default-features = false so this crate's `mock` feature fully controls whether
+# the server's mock code is compiled in (release = --no-default-features = none).
+server = { path = "../server", default-features = false }
 rust-embed = "8"

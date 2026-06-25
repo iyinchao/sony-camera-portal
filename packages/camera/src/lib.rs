@@ -20,6 +20,7 @@ pub const DEFAULT_DESC_PORT: u16 = 64321;
 #[derive(Clone, Debug)]
 pub struct Camera {
     host: String,
+    friendly_name: Option<String>,
     control_url: String,
     service_type: String,
 }
@@ -46,6 +47,7 @@ impl Camera {
         let (control_url, service_type) = browse::parse_device_description(&xml, desc_url)?;
         Ok(Camera {
             host: host_of(desc_url),
+            friendly_name: browse::parse_friendly_name(&xml),
             control_url,
             service_type,
         })
@@ -54,6 +56,16 @@ impl Camera {
     /// The host this camera was reached at (e.g. "10.0.0.1").
     pub fn host(&self) -> &str {
         &self.host
+    }
+
+    /// The camera's UPnP `friendlyName` (e.g. "ILCE-6000"), if it advertised one.
+    pub fn friendly_name(&self) -> Option<&str> {
+        self.friendly_name.as_deref()
+    }
+
+    /// A human label for the camera: its friendly name, else the host.
+    pub fn label(&self) -> &str {
+        self.friendly_name.as_deref().unwrap_or(&self.host)
     }
 
     /// Enumerate every photo on the camera.

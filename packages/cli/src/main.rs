@@ -4,6 +4,8 @@
 
 use rust_embed::RustEmbed;
 use server::{AppState, AssetSource};
+#[cfg(feature = "mock")]
+use std::path::PathBuf;
 
 /// The built React frontend, embedded at compile time (debug builds read from
 /// disk so `npm run dev` / rebuilds reflect without recompiling the binary).
@@ -39,7 +41,16 @@ fn content_type_for(name: &str) -> String {
 struct Args {
     port: u16,
     no_open: bool,
+    /// `--mock <N>`: number of mock photos. With `--mock-dir`, images come from
+    /// that directory (cycling if N exceeds the file count); without it they're
+    /// synthetic. `--mock-dir` alone uses every image in the directory once.
+    /// (Mock support is the `mock` feature — stripped from release builds.)
+    #[cfg(feature = "mock")]
     mock: Option<usize>,
+    #[cfg(feature = "mock")]
+    mock_dir: Option<PathBuf>,
+    #[cfg(feature = "mock")]
+    mock_delay: u64,
 }
 
 fn parse_args() -> Args {
@@ -47,7 +58,12 @@ fn parse_args() -> Args {
     let mut a = Args {
         port: 8080,
         no_open: false,
+        #[cfg(feature = "mock")]
         mock: None,
+        #[cfg(feature = "mock")]
+        mock_dir: None,
+        #[cfg(feature = "mock")]
+        mock_delay: 0,
     };
     let mut i = 1;
     while i < argv.len() {
@@ -57,9 +73,20 @@ fn parse_args() -> Args {
                 a.port = argv.get(i).and_then(|s| s.parse().ok()).unwrap_or(a.port);
             }
             "--no-open" => a.no_open = true,
+            #[cfg(feature = "mock")]
             "--mock" => {
                 i += 1;
                 a.mock = argv.get(i).and_then(|s| s.parse().ok());
+            }
+            #[cfg(feature = "mock")]
+            "--mock-dir" => {
+                i += 1;
+                a.mock_dir = argv.get(i).map(PathBuf::from);
+            }
+            #[cfg(feature = "mock")]
+            "--mock-delay" => {
+                i += 1;
+                a.mock_delay = argv.get(i).and_then(|s| s.parse().ok()).unwrap_or(0);
             }
             other => eprintln!("ignoring unknown arg: {other}"),
         }
@@ -68,18 +95,43 @@ fn parse_args() -> Args {
     a
 }
 
+/// Build the initial app state. With the `mock` feature, `--mock`/`--mock-dir`
+/// select a mock source; otherwise (release) the server always starts cameraless.
+#[cfg(feature = "mock")]
+fn build_state(args: &Args) -> AppState {
+    match (&args.mock_dir, args.mock) {
+        (Some(dir), count) => {
+            let n = count.map_or_else(|| "all".to_string(), |n| n.to_string());
+            eprintln!(
+                "mock mode: {n} images from {} (connect delay {}s)",
+                dir.display(),
+                args.mock_delay
+            );
+            AppState::mock_dir(dir.clone(), count, args.mock_delay)
+        }
+        (None, Some(n)) => {
+            eprintln!(
+                "mock mode: {n} synthetic photos (connect delay {}s)",
+                args.mock_delay
+            );
+            AppState::mock_synthetic(n, args.mock_delay)
+        }
+        (None, None) => AppState::new(),
+    }
+}
+
+#[cfg(not(feature = "mock"))]
+fn build_state(_args: &Args) -> AppState {
+    AppState::new()
+}
+
 fn main() {
     let args = parse_args();
 
-    // Build state. The server always starts; a camera is optional.
-    let state = match args.mock {
-        Some(n) => {
-            eprintln!("mock mode: serving {n} fake photos (no camera)");
-            AppState::with_mock(n)
-        }
-        // No camera at startup — the web UI connects / discovers / sets the IP.
-        None => AppState::new(),
-    };
+    // The server always starts; a camera is optional. Mock modes start
+    // DISCONNECTED with a mock connector so the web UI drives the connect (and
+    // `--mock-delay` simulates discovery latency) just like a real camera.
+    let state = build_state(&args);
 
     // Bind 127.0.0.1 only — never expose the camera proxy to the LAN.
     let addr = format!("127.0.0.1:{}", args.port);

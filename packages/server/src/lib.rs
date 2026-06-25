@@ -5,6 +5,8 @@
 //! Routing is a pure `handle()` function so it can be unit-tested without
 //! binding a socket; `serve()` wires it to `tiny_http`.
 
+#[cfg(feature = "mock")]
+mod mock;
 mod pager;
 mod source;
 mod state;
@@ -82,7 +84,7 @@ pub fn handle(
         ("GET", "/api/list") => {
             let (offset, limit) = parse_page_params(raw_path);
             match state.list_page(offset, limit) {
-                Ok(page) => Response::json(200, page_json(&page)),
+                Ok(page) => Response::json(200, page_json(&page, state.source_gen())),
                 Err(e) => Response::json(503, serde_json::json!({ "error": e })),
             }
         }
@@ -166,7 +168,9 @@ fn parse_page_params(raw_path: &str) -> (usize, usize) {
     (offset, limit.clamp(1, 500))
 }
 
-fn page_json(page: &pager::Page) -> serde_json::Value {
+fn page_json(page: &pager::Page, gen: u64) -> serde_json::Value {
+    // `?v=<gen>` busts the (immutable) browser cache when the source changes;
+    // the proxy ignores the query and resolves by id.
     let photos: Vec<serde_json::Value> = page
         .photos
         .iter()
@@ -175,8 +179,8 @@ fn page_json(page: &pager::Page) -> serde_json::Value {
                 "id": p.id,
                 "name": p.name,
                 "date": p.date,
-                "thumbUrl": format!("/api/thumb/{}", p.id),
-                "fullUrl": format!("/api/photo/{}", p.id),
+                "thumbUrl": format!("/api/thumb/{}?v={}", p.id, gen),
+                "fullUrl": format!("/api/photo/{}?v={}", p.id, gen),
             })
         })
         .collect();
@@ -284,6 +288,7 @@ mod tests {
         assert!(v["error"].is_string());
     }
 
+    #[cfg(feature = "mock")]
     #[test]
     fn mock_list_has_proxied_urls() {
         let state = AppState::with_mock(3);
@@ -295,10 +300,18 @@ mod tests {
         assert_eq!(v["total"], 3);
         assert_eq!(v["hasMore"], false);
         let id = arr[0]["id"].as_str().unwrap();
-        assert_eq!(arr[0]["thumbUrl"], format!("/api/thumb/{id}"));
-        assert_eq!(arr[0]["fullUrl"], format!("/api/photo/{id}"));
+        // URLs carry a ?v=<source gen> cache-buster; the path resolves by id.
+        assert!(arr[0]["thumbUrl"]
+            .as_str()
+            .unwrap()
+            .starts_with(&format!("/api/thumb/{id}?v=")));
+        assert!(arr[0]["fullUrl"]
+            .as_str()
+            .unwrap()
+            .starts_with(&format!("/api/photo/{id}?v=")));
     }
 
+    #[cfg(feature = "mock")]
     #[test]
     fn paginates_without_overlap() {
         let state = AppState::with_mock(10);
@@ -315,6 +328,7 @@ mod tests {
         assert_ne!(p1["photos"][0]["id"], p_last["photos"][0]["id"]);
     }
 
+    #[cfg(feature = "mock")]
     #[test]
     fn mock_thumb_is_svg_after_list() {
         let state = AppState::with_mock(2);
@@ -326,6 +340,7 @@ mod tests {
         assert!(r.content_type.contains("svg"));
     }
 
+    #[cfg(feature = "mock")]
     #[test]
     fn photo_route_is_attachment() {
         let state = AppState::with_mock(1);
@@ -341,6 +356,7 @@ mod tests {
             .contains("attachment"));
     }
 
+    #[cfg(feature = "mock")]
     #[test]
     fn media_is_cacheable_but_listing_is_not() {
         let state = AppState::with_mock(1);
@@ -365,6 +381,7 @@ mod tests {
         assert!(req(&state, "GET", "/api/list").cache_control.is_none());
     }
 
+    #[cfg(feature = "mock")]
     #[test]
     fn unknown_id_404() {
         let state = AppState::with_mock(1);

@@ -35,6 +35,16 @@ pub(crate) fn parse_device_description(
     Err("no ContentDirectory service in device description".into())
 }
 
+/// The device's `<friendlyName>` (e.g. "ILCE-6000") from its UPnP description.
+pub(crate) fn parse_friendly_name(xml: &str) -> Option<String> {
+    let doc = roxmltree::Document::parse(xml).ok()?;
+    doc.descendants()
+        .find(|n| n.tag_name().name() == "friendlyName")
+        .and_then(|n| n.text())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
 /// Resolve a possibly-relative controlURL against the description URL's origin.
 fn resolve_url(base: &str, reference: &str) -> String {
     if reference.starts_with("http://") || reference.starts_with("https://") {
@@ -263,6 +273,12 @@ mod tests {
             parse_device_description(DESC, "http://10.0.0.1:64321/DmsDesc.xml").unwrap();
         assert_eq!(ctrl, "http://10.0.0.1:64321/upnp/control/ContentDirectory");
         assert_eq!(st, "urn:schemas-upnp-org:service:ContentDirectory:1");
+    }
+
+    #[test]
+    fn parses_friendly_name() {
+        assert_eq!(parse_friendly_name(DESC).as_deref(), Some("ILCE-6000"));
+        assert_eq!(parse_friendly_name("<root/>"), None);
     }
 
     #[test]

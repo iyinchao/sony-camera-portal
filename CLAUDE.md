@@ -54,11 +54,18 @@ and opens the printed localhost URL.
 ## Build / run
 - Frontend build: `cd packages/web && npm ci && npm run build` → `packages/web/dist/`
   (needed before `cargo build`; debug builds read it from disk at runtime)
-- Dev run:        `cargo run -- --mock 18` (no camera) — then connect from the web UI
+- Dev run:        `cargo run -- --mock 18` (N synthetic photos); add
+  `--mock-dir <path>` to source the images from a directory (cycling if N exceeds
+  the file count; `--mock-dir` alone = one per file); `--mock-delay <s>` simulates
+  the connect/discovery UX — then connect from the web UI. (Mock starts cameraless
+  and connects via the UI, just like a real camera.)
   - Frontend hot-reload: `cd packages/web && npm run dev` (Vite proxies `/api` → :8080)
-- Build:          `cargo build --release`
-- iSH (iOS):      `cargo zigbuild --release --target i686-unknown-linux-musl` (static 32-bit ELF)
-- Other targets:  darwin/arm64+amd64, windows, linux, android (Termux) via cargo cross
+- **`mock` Cargo feature** (default ON for dev & tests) gates all mock code.
+  **Release/distribution builds strip it with `--no-default-features`** — the
+  shipped binary has no mock code and ignores `--mock`.
+- Build (release):  `cargo build --release --no-default-features`
+- iSH (iOS):        `cargo zigbuild --release --target i686-unknown-linux-musl --no-default-features` (static 32-bit ELF)
+- Other targets:    darwin/arm64+amd64, windows, linux, android (Termux) via cargo cross (add `--no-default-features` for release)
 
 ## Connection model (do not regress)
 - The server starts **without** a camera and never connects on its own. All
