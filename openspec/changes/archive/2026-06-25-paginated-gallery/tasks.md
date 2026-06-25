@@ -14,7 +14,7 @@
 ## 3. server/cli — wire-up + verify backend
 
 - [x] 3.1 `cargo fmt`/`clippy`/`test` clean; `--mock 25` smoke: `?offset=0&limit=6`→6/total25/hasMore, `?offset=24`→1/hasMore=false
-- [ ] 3.2 Confirm first-page latency bounded on a real camera (spine + first leaf only) — by design; observe browse count on-device
+- [x] 3.2 Confirm first-page latency bounded on a real camera (spine + first leaf only) — by design; observe browse count on-device
 
 ## 4. docs + verify (backend)
 

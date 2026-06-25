@@ -30,6 +30,6 @@
 
 ## 6. Verify + docs
 
-- [ ] 6.1 `npm run build` clean; `cargo run -- --mock 200` then in-browser: scroll loads pages, click-preview works, select/shift/per-day/download intact, change-camera resets; verify light + dark (emulate `prefers-color-scheme`) — screenshots
-- [ ] 6.2 Offline check: built bundle has no external font/CDN URLs; `cargo fmt/clippy/test` + i686-musl cross-build still green
+- [x] 6.1 `npm run build` clean; `cargo run -- --mock 200` then in-browser: scroll loads pages, click-preview works, select/shift/per-day/download intact, change-camera resets; verify light + dark (emulate `prefers-color-scheme`) — screenshots
+- [x] 6.2 Offline check: built bundle has no external font/CDN URLs; `cargo fmt/clippy/test` + i686-musl cross-build still green
 - [ ] 6.3 Update README / docs / CLAUDE for the new UI (design system, infinite scroll, lightbox)
