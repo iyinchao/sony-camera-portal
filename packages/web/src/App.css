@@ -165,7 +165,7 @@
   background: var(--card);
   cursor: zoom-in;
   opacity: 0;
-  transition: opacity 0.25s ease;
+  transition: opacity 0.2s ease;
 }
 
 .tile .thumb img.loaded {
@@ -238,7 +238,7 @@
   .tile.skel {
     animation: none;
   }
-  .tile img {
+  .tile .thumb img {
     transition: none;
   }
   button {

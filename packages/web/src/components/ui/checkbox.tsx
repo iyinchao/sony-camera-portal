@@ -4,8 +4,8 @@ import type { ComponentPropsWithoutRef } from 'react'
 import { cn } from '@/lib/utils'
 
 // shadcn-style checkbox: a rounded square that fills with the accent and shows a
-// check when selected. The default white/translucent backdrop keeps it visible
-// over photo thumbnails.
+// check when selected. The translucent frosted backdrop keeps it visible over
+// photo thumbnails.
 export function Checkbox({
   className,
   ...props

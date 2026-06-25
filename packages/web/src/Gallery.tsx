@@ -516,16 +516,23 @@ function Tile({
         <img
           src={photo.thumbUrl}
           alt={photo.name}
+          // NOTE: do NOT add decoding="async" — inside this nested virtualized
+          // scroller it leaves decoded images unpainted (loaded but gray until a
+          // forced repaint). loading="lazy" is fine.
           loading="lazy"
-          decoding="async"
           draggable={false}
           className="cursor-zoom-in"
           onClick={() => onOpen(index)}
+          // Fade in on load; mark already-complete (cached) images immediately so
+          // a missed onLoad can't leave them stuck transparent.
+          ref={(el) => {
+            if (el?.complete) el.classList.add('loaded')
+          }}
           onLoad={(e) => e.currentTarget.classList.add('loaded')}
         />
         <Checkbox
           checked={selected}
-          onCheckedChange={() => {}}
+          onCheckedChange={() => { }}
           onClick={(e) => {
             e.stopPropagation()
             onToggle(index, e.shiftKey)
