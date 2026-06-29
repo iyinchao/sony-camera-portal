@@ -19,12 +19,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: packages/web/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: mlugg/setup-zig@v1
+        with:
+          # Pin a stable release — the default resolves to a dev build whose
+          # ephemeral tarball 404s on the runners.
+          version: 0.15.2
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-zigbuild
@@ -43,7 +47,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: packages/web/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
