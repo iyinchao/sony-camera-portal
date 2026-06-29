@@ -123,6 +123,8 @@ echo "==> Building web bundle…"
 echo "    web bundle ready (packages/web/dist)"
 echo ""
 
+# Start from an empty dist/ so stale artifacts from a previous run never ship.
+rm -rf "$DIST"
 mkdir -p "$DIST"
 
 FAILED=()

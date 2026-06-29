@@ -6,8 +6,9 @@
 
 # --- Frontend ---
 node_modules/
-packages/web/dist/*
-!packages/web/dist/.gitkeep
+# Built bundle; the cli's build.rs creates this dir so rust-embed compiles even
+# before `npm run build` has run (fresh checkout / CI).
+packages/web/dist/
 packages/web/*.tsbuildinfo
 packages/web/vite.config.js
 packages/web/vite.config.d.ts
