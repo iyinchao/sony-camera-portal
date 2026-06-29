@@ -6,7 +6,7 @@
 
 # --- Frontend ---
 node_modules/
-packages/web/dist/
+packages/web/dist/*
 !packages/web/dist/.gitkeep
 packages/web/*.tsbuildinfo
 packages/web/vite.config.js

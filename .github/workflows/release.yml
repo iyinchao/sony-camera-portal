@@ -1,0 +1,74 @@
+name: release
+
+# Tag a version to cut a release:  git tag v0.1.0 && git push origin v0.1.0
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  # One Linux runner cross-compiles every non-macOS target via scripts/build.sh
+  # (zig for the static-musl / mingw ones, the preinstalled Android NDK for the
+  # PIE Termux ones).
+  cross:
+    name: build (ish / android / linux / windows)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: packages/web/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: mlugg/setup-zig@v1
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
+      - name: Build all cross targets
+        run: ./scripts/build.sh ish android android32 linux linux-arm windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-cross
+          path: dist/*
+          if-no-files-found: error
+
+  macos:
+    name: build (macos)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: packages/web/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build macOS (host arch)
+        run: ./scripts/build.sh macos
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-macos
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: publish GitHub Release
+    needs: [cross, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: List artifacts
+        run: ls -lh dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

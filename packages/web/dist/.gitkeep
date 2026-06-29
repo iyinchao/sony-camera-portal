@@ -1,0 +1,2 @@
+# Keep this dir so rust-embed (#[folder="../web/dist"]) compiles on a fresh
+# checkout. The real bundle is produced by 'npm run build' (see scripts/build.sh).
