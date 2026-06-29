@@ -1,6 +1,9 @@
 # --- Rust (workspace) ---
 /target/
 
+# --- Release binaries collected by scripts/build.sh ---
+/dist/
+
 # --- Frontend ---
 node_modules/
 packages/web/dist/

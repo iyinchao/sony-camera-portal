@@ -63,9 +63,21 @@ and opens the printed localhost URL.
 - **`mock` Cargo feature** (default ON for dev & tests) gates all mock code.
   **Release/distribution builds strip it with `--no-default-features`** — the
   shipped binary has no mock code and ignores `--mock`.
-- Build (release):  `cargo build --release --no-default-features`
-- iSH (iOS):        `cargo zigbuild --release --target i686-unknown-linux-musl --no-default-features` (static 32-bit ELF)
-- Other targets:    darwin/arm64+amd64, windows, linux, android (Termux) via cargo cross (add `--no-default-features` for release)
+- Release builds (mock stripped) go through **`scripts/build.sh <platform>`**, which
+  builds the web bundle then the embedded binary and collects it into **`dist/`**
+  under a per-platform name (e.g. `dist/sony-camera-portal-android-arm64`):
+  - `scripts/build.sh ish`        → iSH/iOS       `i686-unknown-linux-musl`   (zigbuild, static)
+  - `scripts/build.sh android`    → Termux arm64  `aarch64-linux-android`     (NDK clang, PIE)
+  - `scripts/build.sh linux`      → Linux x86_64  `x86_64-unknown-linux-musl` (zigbuild, static)
+  - `scripts/build.sh macos`      → macOS (host)  native cargo
+  - also `android32` (armv7), `linux-arm` (aarch64), `windows` (x86_64-pc-windows-gnu);
+    `all` = ish + android + linux + macos.
+  - **iSH / Linux** use static **musl** (zigbuild) — no libc/NDK; the kernel runs them
+    directly. **Android/Termux MUST be PIE** (non-PIE static is rejected with
+    "unexpected e_type: 2"), so it uses the **Android NDK** clang linker → a PIE Bionic
+    binary; set `ANDROID_NDK_HOME` or install the NDK under `$ANDROID_HOME/ndk/*`
+    (`NDK_API` sets the min API, default 24). The script passes `--no-default-features`.
+  - Plain debug build for the host: `cargo build` (mock on); `cargo run -- --mock 18`.
 
 ## Connection model (do not regress)
 - The server starts **without** a camera and never connects on its own. All
