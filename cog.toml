@@ -1,0 +1,11 @@
+# cocogitto: enforce Conventional Commits at commit time. CHANGELOG + versioning
+# are handled by release-plz, so cog is used only for the commit-msg hook here.
+#
+# Install the hook after cloning:  cog install-hook --all
+# (git hooks live in .git/hooks and are not distributed with the repo.)
+
+[git_hooks.commit-msg]
+script = """#!/bin/sh
+set -e
+cog verify --file "$1"
+"""

@@ -79,6 +79,25 @@ and opens the printed localhost URL.
     (`NDK_API` sets the min API, default 24). The script passes `--no-default-features`.
   - Plain debug build for the host: `cargo build` (mock on); `cargo run -- --mock 18`.
 
+## Releasing & commits
+- **Conventional Commits are required.** A `cog` (cocogitto) `commit-msg` hook
+  (`cog.toml`) rejects non-conforming messages. After cloning, install it once:
+  `cargo install cocogitto && cog install-hook --all` (hooks live in `.git/hooks`,
+  not distributed). Types: `feat` / `fix` (bump) + `build` / `ci` / `docs` /
+  `chore` / `refactor` / `perf` / `test` / `style`.
+- **Releases are automated by `release-plz`** (`release-plz.toml` +
+  `.github/workflows/release-plz.yml`) — do NOT tag by hand. On every push to
+  `main` it keeps an open **release PR** (bumps the single workspace version in
+  `[workspace.package]` + updates `CHANGELOG.md`). **Merge that PR** to cut the
+  release: release-plz tags `vX.Y.Z` + creates the GitHub Release, which gates the
+  cross-platform binary build (same workflow, via `releases_created`) that
+  attaches `scripts/build.sh` artifacts. This is an app — `git_only = true`
+  (no crates.io); only the `sony-camera-portal` crate emits the tag, the libs ride
+  the same version via `version_group`.
+- One-time GitHub setup: **Settings → Actions → General → Workflow permissions →
+  enable "Allow GitHub Actions to create and approve pull requests"** (release-plz
+  opens the release PR with the default `GITHUB_TOKEN`).
+
 ## Connection model (do not regress)
 - The server starts **without** a camera and never connects on its own. All
   connecting is driven by the web UI via `/api/connect` (auto-discover, or a
