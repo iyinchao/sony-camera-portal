@@ -29,7 +29,7 @@ jobs:
         # `zig-linux-x86_64` naming (404 for stable releases, which use
         # `zig-x86_64-linux`); grab the stable tarball straight from ziglang.org.
         run: |
-          ZIG_VER=0.15.2
+          ZIG_VER=0.16.0
           mkdir -p "$HOME/zig"
           curl -fsSL "https://ziglang.org/download/${ZIG_VER}/zig-x86_64-linux-${ZIG_VER}.tar.xz" \
             | tar -xJ -C "$HOME/zig" --strip-components=1
