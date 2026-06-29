@@ -24,11 +24,17 @@ jobs:
           cache-dependency-path: packages/web/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - uses: mlugg/setup-zig@v1
-        with:
-          # Pin a stable release — the default resolves to a dev build whose
-          # ephemeral tarball 404s on the runners.
-          version: 0.15.2
+      - name: Install Zig
+        # setup-zig actions fetch from dev-build mirrors with the old
+        # `zig-linux-x86_64` naming (404 for stable releases, which use
+        # `zig-x86_64-linux`); grab the stable tarball straight from ziglang.org.
+        run: |
+          ZIG_VER=0.15.2
+          mkdir -p "$HOME/zig"
+          curl -fsSL "https://ziglang.org/download/${ZIG_VER}/zig-x86_64-linux-${ZIG_VER}.tar.xz" \
+            | tar -xJ -C "$HOME/zig" --strip-components=1
+          echo "$HOME/zig" >> "$GITHUB_PATH"
+      - run: zig version
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-zigbuild
