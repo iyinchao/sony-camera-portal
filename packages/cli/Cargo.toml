@@ -3,6 +3,7 @@ name = "sony-camera-portal"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish.workspace = true
 description = "Local web gallery for a Sony camera over its Wi-Fi access point"
 
 [[bin]]

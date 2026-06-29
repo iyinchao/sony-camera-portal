@@ -3,6 +3,7 @@ name = "camera"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish.workspace = true
 description = "Sony PlayMemories / DLNA camera client (discover, Browse, fetch)"
 
 [dependencies]

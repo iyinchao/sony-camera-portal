@@ -6,6 +6,9 @@ members = ["packages/camera", "packages/server", "packages/cli"]
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
+# This is an app, never a crates.io crate — keep cargo publish/package out of the
+# release path. release-plz still versions, changelogs, tags, and GitHub-releases.
+publish = false
 
 # Small, fully-static binaries that cross-compile cleanly (incl. i686-musl/iSH).
 [profile.release]
