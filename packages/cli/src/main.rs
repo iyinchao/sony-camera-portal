@@ -73,6 +73,10 @@ fn parse_args() -> Args {
                 a.port = argv.get(i).and_then(|s| s.parse().ok()).unwrap_or(a.port);
             }
             "--no-open" => a.no_open = true,
+            "--version" | "-V" => {
+                println!("sony-camera-portal {}", env!("CARGO_PKG_VERSION"));
+                std::process::exit(0);
+            }
             #[cfg(feature = "mock")]
             "--mock" => {
                 i += 1;
@@ -136,7 +140,10 @@ fn main() {
     // Bind 127.0.0.1 only — never expose the camera proxy to the LAN.
     let addr = format!("127.0.0.1:{}", args.port);
     let url = format!("http://{addr}");
-    eprintln!("sony-camera-portal listening at {url}");
+    eprintln!(
+        "sony-camera-portal v{} listening at {url}",
+        env!("CARGO_PKG_VERSION")
+    );
 
     if !args.no_open {
         let u = url.clone();
