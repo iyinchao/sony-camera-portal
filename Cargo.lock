@@ -19,7 +19,7 @@ dependencies = [
 
 [[package]]
 name = "camera"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "roxmltree",
 ]
@@ -217,7 +217,7 @@ dependencies = [
 
 [[package]]
 name = "server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "camera",
  "serde",
@@ -238,7 +238,7 @@ dependencies = [
 
 [[package]]
 name = "sony-camera-portal"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "camera",
  "rust-embed",

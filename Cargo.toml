@@ -3,7 +3,7 @@ resolver = "2"
 members = ["packages/camera", "packages/server", "packages/cli"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 # This is an app, never a crates.io crate — keep cargo publish/package out of the
