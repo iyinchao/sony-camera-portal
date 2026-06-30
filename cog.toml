@@ -1,9 +1,21 @@
-# cocogitto: enforce Conventional Commits at commit time. CHANGELOG + versioning
-# are handled by release-plz, so cog is used only for the commit-msg hook here.
+# cocogitto drives both commit linting and releases (no crates.io publish — this
+# is a binary app). `cog bump --auto` computes the next version from Conventional
+# Commits, updates the shared workspace version + Cargo.lock, regenerates
+# CHANGELOG.md, commits, and tags `vX.Y.Z`. The tag triggers the build workflow
+# (.github/workflows/release.yml) which attaches the cross-platform binaries.
 #
-# Install the hook after cloning:  cog install-hook --all
+# Install the commit-msg hook after cloning:  cog install-hook --all
 # (git hooks live in .git/hooks and are not distributed with the repo.)
 
+tag_prefix = "v"
+
+# Keep the Cargo manifests + lockfile in step with the bumped version. Run before
+# the bump commit is created. cargo-edit provides `cargo set-version`.
+pre_bump_hooks = [
+  "cargo set-version {{version}}",
+]
+
+# Enforce Conventional Commits at commit time.
 [git_hooks.commit-msg]
 script = """#!/bin/sh
 set -e

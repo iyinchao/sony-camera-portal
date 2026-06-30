@@ -85,18 +85,17 @@ and opens the printed localhost URL.
   `cargo install cocogitto && cog install-hook --all` (hooks live in `.git/hooks`,
   not distributed). Types: `feat` / `fix` (bump) + `build` / `ci` / `docs` /
   `chore` / `refactor` / `perf` / `test` / `style`.
-- **Releases are automated by `release-plz`** (`release-plz.toml` +
-  `.github/workflows/release-plz.yml`) — do NOT tag by hand. On every push to
-  `main` it keeps an open **release PR** (bumps the single workspace version in
-  `[workspace.package]` + updates `CHANGELOG.md`). **Merge that PR** to cut the
-  release: release-plz tags `vX.Y.Z` + creates the GitHub Release, which gates the
-  cross-platform binary build (same workflow, via `releases_created`) that
-  attaches `scripts/build.sh` artifacts. This is an app — `git_only = true`
-  (no crates.io); only the `sony-camera-portal` crate emits the tag, the libs ride
-  the same version via `version_group`.
-- One-time GitHub setup: **Settings → Actions → General → Workflow permissions →
-  enable "Allow GitHub Actions to create and approve pull requests"** (release-plz
-  opens the release PR with the default `GITHUB_TOKEN`).
+- **Releases are cut with `cog bump --auto`** (`cog.toml`) — do NOT tag by hand.
+  It computes the next version from the commits since the last tag, runs
+  `cargo set-version` to bump the single `[workspace.package]` version (+ Cargo.lock;
+  the libs inherit it), regenerates `CHANGELOG.md`, makes a `chore(version): vX.Y.Z`
+  commit, and tags `vX.Y.Z`. Then `git push && git push --tags`: the tag triggers
+  `.github/workflows/release.yml`, which cross-compiles via `scripts/build.sh` and
+  publishes a GitHub Release with the binaries attached. Needs `cargo-edit`
+  (`cargo install cargo-edit`) for `cargo set-version`.
+  - We do NOT use release-plz: it runs `cargo package` on the previous tag to diff,
+    which fails on this never-published workspace (inter-crate `path` deps without
+    versions). cog is git/commit-only, so none of that applies.
 
 ## Connection model (do not regress)
 - The server starts **without** a camera and never connects on its own. All
